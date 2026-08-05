@@ -4,6 +4,8 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import {
   collection,
@@ -24,10 +26,25 @@ let currentViewData = {};
 let currentAuthMode = "login";
 
 // Track Auth State Changes
+// Track Auth State Changes
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
   updateNavAuthUI();
-  router("home");
+
+  if (currentUser) {
+    router("home");
+  } else {
+    // Show a clean welcome/landing state behind the modal, then trigger login
+    const appView = document.getElementById("app-view");
+    appView.innerHTML = `
+      <div class="text-center py-20">
+        <h1 class="text-4xl font-extrabold mb-4">Welcome to CineTicket</h1>
+        <p class="text-slate-400 mb-8">Please sign in to browse and book movie tickets.</p>
+        <button onclick="openAuthModal('login')" class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Get Started</button>
+      </div>
+    `;
+    openAuthModal("login");
+  }
 });
 
 window.updateNavAuthUI = function () {
@@ -51,7 +68,14 @@ window.updateNavAuthUI = function () {
 };
 
 // Router Handler
+// Router Handler
 window.router = async function (view, data = null) {
+  // If user is not logged in, force the login modal open and block protected views
+  if (!currentUser && view !== "login") {
+    openAuthModal("login");
+    return;
+  }
+
   const appView = document.getElementById("app-view");
   currentViewData = data;
 
@@ -67,7 +91,6 @@ window.router = async function (view, data = null) {
     renderUserProfile();
   }
 };
-
 async function fetchMovies() {
   const querySnapshot = await getDocs(collection(db, "movies"));
   let movies = [];
@@ -492,4 +515,32 @@ window.handleAuthSubmit = async function (e) {
 
 window.handleLogout = function () {
   signOut(auth);
+};
+
+window.handleGoogleSignIn = async function () {
+  const provider = new GoogleAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // Check if user profile already exists in Firestore, if not, create it
+    const userDocRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userDocRef);
+
+    if (!userSnap.exists()) {
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        name: user.displayName || "Google User",
+        email: user.email,
+        phone: user.phoneNumber || "",
+        createdAt: new Date(),
+      });
+    }
+
+    closeAuthModal();
+    alert("Successfully signed in with Google!");
+  } catch (err) {
+    console.error("Google Sign-In Error:", err);
+    alert("Google Sign-In Failed: " + err.message);
+  }
 };
