@@ -38,7 +38,7 @@ onAuthStateChanged(auth, (user) => {
     const appView = document.getElementById("app-view");
     appView.innerHTML = `
       <div class="text-center py-20">
-        <h1 class="text-4xl font-extrabold mb-4">Welcome to CineTicket</h1>
+        <h1 class="text-4xl font-extrabold mb-4">Welcome to MovieNest</h1>
         <p class="text-slate-400 mb-8">Please sign in to browse and book movie tickets.</p>
         <button onclick="openAuthModal('login')" class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Get Started</button>
       </div>
@@ -259,7 +259,7 @@ window.initiateRazorpayPayment = async function (movieId, timeSlot) {
     key: "rzp_test_TJ0KhAbQ3ZjQYG",
     amount: amount,
     currency: "INR",
-    name: "CineTicket",
+    name: "MovieNest",
     description: "Movie Ticket Booking",
     handler: async function (response) {
       const seatDocRef = doc(db, "showSeats", `${movieId}_${timeSlot}`);
