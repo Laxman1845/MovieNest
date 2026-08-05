@@ -1,0 +1,495 @@
+import { auth, db } from "./firebase-config.js";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  addDoc,
+  setDoc,
+  updateDoc,
+  onSnapshot,
+  query,
+  where,
+  runTransaction,
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+let currentUser = null;
+let currentViewData = {};
+let currentAuthMode = "login";
+
+// Track Auth State Changes
+onAuthStateChanged(auth, (user) => {
+  currentUser = user;
+  updateNavAuthUI();
+  router("home");
+});
+
+window.updateNavAuthUI = function () {
+  const container = document.getElementById("auth-nav-container");
+  if (currentUser) {
+    container.innerHTML = `
+            <div class="flex items-center space-x-3">
+                <button onclick="router('profile')" class="text-sm font-medium hover:text-rose-500">My Bookings</button>
+                <span class="text-slate-400 text-sm">${currentUser.email}</span>
+                <button onclick="handleLogout()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-sm transition">Logout</button>
+            </div>
+        `;
+  } else {
+    container.innerHTML = `
+            <div class="flex space-x-2">
+                <button onclick="openAuthModal('login')" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Login</button>
+                <button onclick="openAuthModal('signup')" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Sign Up</button>
+            </div>
+        `;
+  }
+};
+
+// Router Handler
+window.router = async function (view, data = null) {
+  const appView = document.getElementById("app-view");
+  currentViewData = data;
+
+  if (view === "home") {
+    appView.innerHTML = `<div class="text-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto"></div></div>`;
+    const movies = await fetchMovies();
+    renderHome(movies);
+  } else if (view === "details") {
+    renderMovieDetails(data);
+  } else if (view === "seats") {
+    renderSeatSelection(data);
+  } else if (view === "profile") {
+    renderUserProfile();
+  }
+};
+
+async function fetchMovies() {
+  const querySnapshot = await getDocs(collection(db, "movies"));
+  let movies = [];
+  querySnapshot.forEach((doc) => {
+    movies.push({ id: doc.id, ...doc.data() });
+  });
+  return movies;
+}
+
+function renderHome(movies) {
+  const appView = document.getElementById("app-view");
+  appView.innerHTML = `
+        <div class="mb-8">
+            <h1 class="text-3xl font-extrabold mb-2">Now Showing</h1>
+            <p class="text-slate-400">Book tickets for the latest blockbuster movies.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" id="movies-grid">
+            ${movies.length === 0 ? '<p class="text-slate-500 col-span-full text-center py-10">No movies found. Add movies via Admin dashboard.</p>' : ""}
+        </div>
+    `;
+
+  const grid = document.getElementById("movies-grid");
+  movies.forEach((movie) => {
+    const card = document.createElement("div");
+    card.className =
+      "bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-slate-700 transition cursor-pointer flex flex-col";
+    card.onclick = () => router("details", movie);
+    card.innerHTML = `
+            <img src="${movie.posterUrl || "https://via.placeholder.com/300x450"}" alt="${movie.title}" class="w-full h-80 object-cover">
+            <div class="p-4 flex flex-col flex-grow justify-between">
+                <div>
+                    <h3 class="font-bold text-lg mb-1">${movie.title}</h3>
+                    <p class="text-sm text-slate-400">${movie.genre || "Action/Drama"}</p>
+                </div>
+                <button class="mt-4 w-full bg-rose-600/20 hover:bg-rose-600 text-rose-500 hover:text-white py-2 rounded-lg font-medium transition text-sm">Book Tickets</button>
+            </div>
+        `;
+    grid.appendChild(card);
+  });
+}
+
+function renderMovieDetails(movie) {
+  const appView = document.getElementById("app-view");
+  appView.innerHTML = `
+        <button onclick="router('home')" class="mb-6 text-sm text-slate-400 hover:text-white flex items-center">&larr; Back to Movies</button>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <img src="${movie.posterUrl}" class="w-full rounded-2xl shadow-xl h-[450px] object-cover" alt="${movie.title}">
+            <div class="md:col-span-2 space-y-6">
+                <h1 class="text-4xl font-black">${movie.title}</h1>
+                <p class="text-slate-300 leading-relaxed">${movie.description || "No description available."}</p>
+                
+                <div class="border-t border-slate-800 pt-6">
+                    <h3 class="text-lg font-bold mb-4">Select Show Date & Time</h3>
+                    <div class="flex gap-4 mb-4">
+                        <button class="px-4 py-2 bg-rose-600 text-white rounded-lg font-medium">Today</button>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="proceedToSeats('${movie.id}', '10:00 AM')" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">10:00 AM</button>
+                        <button onclick="proceedToSeats('${movie.id}', '02:30 PM')" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">02:30 PM</button>
+                        <button onclick="proceedToSeats('${movie.id}', '07:00 PM')" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">07:00 PM</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.proceedToSeats = function (movieId, timeSlot) {
+  if (!currentUser) {
+    openAuthModal("login");
+    return;
+  }
+  router("seats", { movieId, timeSlot });
+};
+
+function renderSeatSelection(data) {
+  const appView = document.getElementById("app-view");
+  appView.innerHTML = `
+        <button onclick="router('home')" class="mb-6 text-sm text-slate-400 hover:text-white">&larr; Cancel Booking</button>
+        <div class="max-w-3xl mx-auto bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+            <h2 class="text-xl font-bold mb-1 text-center">Select Your Seats</h2>
+            <p class="text-sm text-slate-400 text-center mb-6">Show Time: ${data.timeSlot}</p>
+            
+            <div class="w-full bg-slate-800 h-2 rounded mb-10 text-center text-xs text-slate-500 uppercase tracking-widest pt-3">Screen This Way</div>
+            
+            <div class="grid grid-cols-8 gap-3 max-w-md mx-auto mb-8" id="seat-grid"></div>
+
+            <div class="flex justify-center gap-6 mb-6 text-xs text-slate-400">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 bg-slate-800 border border-slate-700 rounded"></div> Available</div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 bg-rose-600 rounded"></div> Selected</div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 bg-slate-900 border border-slate-800 text-slate-600 rounded"></div> Occupied</div>
+            </div>
+
+            <div class="flex justify-between items-center border-t border-slate-800 pt-6">
+                <div>
+                    <p class="text-sm text-slate-400">Selected Seats: <span id="selected-seats-count" class="text-white font-bold">0</span></p>
+                    <p class="text-lg font-bold text-rose-500">₹<span id="total-price">0</span></p>
+                </div>
+                <button onclick="initiateRazorpayPayment('${data.movieId}', '${data.timeSlot}')" class="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Proceed to Payment</button>
+            </div>
+        </div>
+    `;
+
+  const seatDocRef = doc(db, "showSeats", `${data.movieId}_${data.timeSlot}`);
+
+  onSnapshot(seatDocRef, async (docSnap) => {
+    let bookedSeats = [];
+    if (docSnap.exists()) {
+      bookedSeats = docSnap.data().bookedSeats || [];
+    } else {
+      await setDoc(seatDocRef, { bookedSeats: [] });
+    }
+
+    const seatGrid = document.getElementById("seat-grid");
+    seatGrid.innerHTML = "";
+    const rows = ["A", "B", "C", "D"];
+
+    rows.forEach((row) => {
+      for (let i = 1; i <= 6; i++) {
+        const seatId = `${row}${i}`;
+        const isBooked = bookedSeats.includes(seatId);
+        const seatBtn = document.createElement("button");
+
+        if (isBooked) {
+          seatBtn.className = `p-3 rounded-lg text-xs font-bold bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed opacity-50`;
+          seatBtn.innerText = seatId;
+          seatBtn.disabled = true;
+        } else {
+          seatBtn.className = `p-3 rounded-lg text-xs font-bold bg-slate-800 hover:bg-rose-600/30 border border-slate-700 text-slate-300 transition`;
+          seatBtn.innerText = seatId;
+
+          seatBtn.onclick = () => {
+            seatBtn.classList.toggle("bg-rose-600");
+            seatBtn.classList.toggle("text-white");
+            seatBtn.classList.toggle("selected-seat");
+            updateBookingSummary();
+          };
+        }
+        seatGrid.appendChild(seatBtn);
+      }
+    });
+    updateBookingSummary();
+  });
+}
+
+function updateBookingSummary() {
+  const selected = document.querySelectorAll(".selected-seat");
+  const countEl = document.getElementById("selected-seats-count");
+  const priceEl = document.getElementById("total-price");
+
+  if (countEl) countEl.innerText = selected.length;
+  if (priceEl) priceEl.innerText = selected.length * 200;
+}
+
+window.initiateRazorpayPayment = async function (movieId, timeSlot) {
+  const selected = document.querySelectorAll(".selected-seat");
+  if (selected.length === 0) {
+    alert("Please select at least one seat.");
+    return;
+  }
+
+  const seatIds = Array.from(selected).map((el) => el.innerText);
+  const amount = selected.length * 200 * 100;
+
+  var options = {
+    key: "rzp_test_TJ0KhAbQ3ZjQYG",
+    amount: amount,
+    currency: "INR",
+    name: "CineTicket",
+    description: "Movie Ticket Booking",
+    handler: async function (response) {
+      const seatDocRef = doc(db, "showSeats", `${movieId}_${timeSlot}`);
+
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(seatDocRef);
+          let currentBooked = snap.exists()
+            ? snap.data().bookedSeats || []
+            : [];
+
+          for (let seat of seatIds) {
+            if (currentBooked.includes(seat)) {
+              throw new Error(
+                `Seat ${seat} was just booked by someone else. Please choose another seat.`,
+              );
+            }
+          }
+
+          transaction.set(
+            seatDocRef,
+            { bookedSeats: [...currentBooked, ...seatIds] },
+            { merge: true },
+          );
+        });
+
+        const bookingData = {
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+          movieId: movieId,
+          timeSlot: timeSlot,
+          seats: seatIds,
+          amount: amount / 100,
+          paymentId: response.razorpay_payment_id,
+          createdAt: new Date(),
+        };
+
+        await addDoc(collection(db, "bookings"), bookingData);
+
+        // Generate and download PDF ticket automatically
+        generateTicketPDF(bookingData);
+
+        alert("Payment Successful! Booking Confirmed & PDF downloading.");
+        router("profile");
+      } catch (err) {
+        console.error(err);
+        alert(
+          err.message ||
+            "Booking conflict detected. Please select available seats again.",
+        );
+        router("seats", { movieId, timeSlot });
+      }
+    },
+    prefill: {
+      email: currentUser.email,
+    },
+    theme: {
+      color: "#e11d48",
+    },
+  };
+
+  var rzp1 = new Razorpay(options);
+  rzp1.open();
+};
+
+// Function to create and download the PDF ticket using jsPDF
+function generateTicketPDF(booking) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFillColor(15, 23, 42); // Dark slate background matching theme
+  doc.rect(0, 0, 210, 297, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.text("CINEBOOKING TICKET RECEIPT", 20, 30);
+
+  doc.setFontSize(12);
+  doc.setTextColor(244, 63, 94); // Rose accent color
+  doc.text("Confirmed Booking Pass", 20, 40);
+
+  doc.setDrawColor(51, 65, 85);
+  doc.line(20, 50, 190, 50);
+
+  doc.setTextColor(203, 213, 225);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+
+  let y = 70;
+  doc.text(`User Email: ${booking.userEmail}`, 20, y);
+  y += 12;
+  doc.text(`Showtime Slot: ${booking.timeSlot}`, 20, y);
+  y += 12;
+  doc.text(`Selected Seats: ${booking.seats.join(", ")}`, 20, y);
+  y += 12;
+  doc.text(`Total Paid Amount: ₹${booking.amount}`, 20, y);
+  y += 12;
+  doc.text(`Razorpay Payment ID: ${booking.paymentId}`, 20, y);
+  y += 12;
+  doc.text(`Booking Date: ${new Date().toLocaleString()}`, 20, y);
+
+  doc.line(20, y + 15, 190, y + 15);
+  doc.setFontSize(10);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    "Please present this ticket confirmation at the entrance counter. Enjoy your movie!",
+    20,
+    y + 30,
+  );
+
+  doc.save(`Movie-Ticket-${booking.timeSlot.replace(/\s+/g, "")}.pdf`);
+}
+
+async function renderUserProfile() {
+  const appView = document.getElementById("app-view");
+  appView.innerHTML = `
+        <h1 class="text-3xl font-extrabold mb-6">My Booking History</h1>
+        <div class="space-y-4" id="bookings-list">
+            <div class="animate-pulse bg-slate-900 h-24 rounded-xl"></div>
+        </div>
+    `;
+
+  const q = query(
+    collection(db, "bookings"),
+    where("userId", "==", currentUser.uid),
+  );
+  const querySnapshot = await getDocs(q);
+  const list = document.getElementById("bookings-list");
+  list.innerHTML = "";
+
+  if (querySnapshot.empty) {
+    list.innerHTML = `<p class="text-slate-500">You haven't made any bookings yet.</p>`;
+    return;
+  }
+
+  querySnapshot.forEach((docSnap) => {
+    const booking = docSnap.data();
+    const card = document.createElement("div");
+    card.className =
+      "bg-slate-900 border border-slate-800 p-6 rounded-xl flex justify-between items-center";
+    card.innerHTML = `
+            <div>
+                <p class="text-xs text-rose-500 font-bold mb-1">Booking ID: ${docSnap.id}</p>
+                <h3 class="text-lg font-bold">Time Slot: ${booking.timeSlot}</h3>
+                <p class="text-sm text-slate-400">Seats: ${booking.seats.join(", ")}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-lg font-bold">₹${booking.amount}</p>
+                <span class="inline-block bg-emerald-500/10 text-emerald-500 text-xs px-2.5 py-1 rounded-full font-medium mt-1">Confirmed</span>
+            </div>
+        `;
+    list.appendChild(card);
+  });
+}
+
+// Authentication Tab Switcher & Modal Control
+window.switchAuthTab = function (mode) {
+  currentAuthMode = mode;
+  const tabLogin = document.getElementById("tab-login");
+  const tabSignup = document.getElementById("tab-signup");
+  const title = document.getElementById("auth-modal-title");
+  const submitBtn = document.getElementById("auth-submit-btn");
+  const extraFields = document.getElementById("signup-extra-fields");
+
+  if (mode === "login") {
+    tabLogin.className =
+      "flex-1 pb-3 text-center font-bold text-rose-500 border-b-2 border-rose-500 transition";
+    tabSignup.className =
+      "flex-1 pb-3 text-center font-bold text-slate-400 border-b-2 border-transparent transition";
+    title.innerText = "Welcome Back";
+    submitBtn.innerText = "Sign In";
+    extraFields.classList.add("hidden");
+    document.getElementById("auth-name").removeAttribute("required");
+  } else {
+    tabSignup.className =
+      "flex-1 pb-3 text-center font-bold text-rose-500 border-b-2 border-rose-500 transition";
+    tabLogin.className =
+      "flex-1 pb-3 text-center font-bold text-slate-400 border-b-2 border-transparent transition";
+    title.innerText = "Create New Account";
+    submitBtn.innerText = "Register & Sign Up";
+    extraFields.classList.remove("hidden");
+    document.getElementById("auth-name").setAttribute("required", "true");
+  }
+};
+
+window.openAuthModal = function (mode = "login") {
+  switchAuthTab(mode);
+  document.getElementById("auth-modal").classList.remove("hidden");
+};
+
+window.closeAuthModal = function () {
+  document.getElementById("auth-modal").classList.add("hidden");
+};
+
+window.handleAuthSubmit = async function (e) {
+  e.preventDefault();
+  const email = document.getElementById("auth-email").value;
+  const password = document.getElementById("auth-password").value;
+
+  if (currentAuthMode === "login") {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      closeAuthModal();
+    } catch (err) {
+      console.error("Login Error:", err.code);
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/wrong-password"
+      ) {
+        alert(
+          "Invalid email or password. Please verify your credentials or create a new account.",
+        );
+      } else {
+        alert("Login Failed: " + err.message);
+      }
+    }
+  } else {
+    const name = document.getElementById("auth-name").value;
+    const phone = document.getElementById("auth-phone").value;
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      const user = userCredential.user;
+
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        name: name,
+        email: email,
+        phone: phone || "",
+        createdAt: new Date(),
+      });
+
+      alert("Account created successfully!");
+      closeAuthModal();
+    } catch (createErr) {
+      console.error("Signup Error:", createErr.code);
+      if (createErr.code === "auth/email-already-in-use") {
+        alert(
+          "This email is already registered. Please switch to the Sign In tab.",
+        );
+      } else {
+        alert("Registration Failed: " + createErr.message);
+      }
+    }
+  }
+};
+
+window.handleLogout = function () {
+  signOut(auth);
+};
