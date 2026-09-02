@@ -82,3 +82,83 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* Updated Refined Light Theme */
+body.light-theme {
+  background-color: #f8fafc !important; /* Soft light background */
+  color: #0f172a !important; /* Dark Slate Primary Text */
+}
+
+/* Base Headings & Titles */
+body.light-theme h1,
+body.light-theme h2,
+body.light-theme h3,
+body.light-theme h4 {
+  color: #0f172a !important;
+}
+
+/* Subtitles, Descriptions, & Email Text */
+body.light-theme p,
+body.light-theme span:not(.text-rose-500) {
+  color: #475569 !important;
+}
+
+/* Navigation Bar & Auth Modals */
+body.light-theme nav,
+body.light-theme #auth-modal > div {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+/* Movie Cards & Containers */
+body.light-theme .bg-slate-900,
+body.light-theme .bg-slate-800 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+}
+
+/* Movie Card Titles & Genre Subtitles Specific Fix */
+body.light-theme #movies-grid h3 {
+  color: #0f172a !important;
+}
+
+body.light-theme #movies-grid p {
+  color: #64748b !important;
+}
+
+/* Book Tickets Button Override */
+body.light-theme #movies-grid button {
+  background-color: #ffe4e6 !important; /* Light rose tint */
+  color: #e11d48 !important; /* Solid Rose Text */
+  font-weight: 600;
+}
+
+body.light-theme #movies-grid button:hover {
+  background-color: #e11d48 !important;
+  color: #ffffff !important;
+}
+
+/* Navigation Buttons (Logout, My Bookings) */
+body.light-theme nav button.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-theme nav button.bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Seat Selection Grid Items */
+body.light-theme #seat-grid button.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-theme #seat-grid button.selected-seat {
+  background-color: #e11d48 !important;
+  color: #ffffff !important;
+}
