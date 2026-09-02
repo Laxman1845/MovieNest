@@ -162,3 +162,97 @@ body.light-theme #seat-grid button.selected-seat {
   background-color: #e11d48 !important;
   color: #ffffff !important;
 }
+
+/* Additional Admin Portal Light Theme Rules */
+body.light-theme #admin-auth-container {
+  background-color: #f8fafc !important;
+}
+
+body.light-theme #admin-auth-container .glass-panel {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme input,
+body.light-theme textarea {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Placeholder Text Color Override for Light Theme */
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder {
+  color: #334155 !important; /* Slate-700 matching the email text */
+  opacity: 1 !important; /* Ensures crisp rendering across browsers */
+}
+
+/* Stat Cards & List Items in Admin Dashboard */
+body.light-theme #admin-dashboard-container .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+body.light-theme #admin-movies-list > div,
+body.light-theme #admin-bookings-list > div {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Admin Login Light Mode Specific Styling */
+body.light-theme #admin-auth-container {
+  background-color: #f8fafc !important; /* Soft light background */
+}
+
+body.light-theme #admin-auth-container .glass-panel {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.05),
+    0 8px 10px -6px rgb(0 0 0 / 0.05) !important;
+}
+
+/* Fix Labels Above Inputs */
+/* Clean, Modern Light Mode Inputs & Placeholders */
+body.light-theme #admin-auth-container label,
+body.light-theme #add-movie-form label {
+  color: #1e293b !important; /* Deep Slate for clean, sharp headers/labels */
+  font-weight: 700 !important;
+}
+
+/* Input Fields - Light Crisp Background */
+body.light-theme input,
+body.light-theme textarea,
+body.light-theme #admin-auth-container input {
+  background-color: #f8fafc !important; /* Crisp, clean off-white slate background */
+  color: #0f172a !important; /* Rich dark text for entered values */
+  border: 1.5px solid #cbd5e1 !important; /* Subtle, defined border */
+}
+
+/* Input Focus Ring - Interactive Accent */
+body.light-theme input:focus,
+body.light-theme textarea:focus,
+body.light-theme #admin-auth-container input:focus {
+  background-color: #ffffff !important; /* Pure white when active */
+  border-color: #e11d48 !important; /* Matching Rose accent highlight */
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12) !important;
+  outline: none !important;
+}
+
+/* High Contrast Placeholder Text Color */
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder,
+body.light-theme #admin-auth-container input::placeholder {
+  color: #475569 !important; /* Slate-600: High contrast, crisp placeholder color */
+  opacity: 1 !important;
+}
+
+/* Back Link Fix */
+body.light-theme #admin-auth-container a {
+  color: #64748b !important;
+}
+
+body.light-theme #admin-auth-container a:hover {
+  color: #0f172a !important;
+}
