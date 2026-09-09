@@ -25,28 +25,6 @@ let currentUser = null;
 let currentViewData = {};
 let currentAuthMode = "login";
 
-// Track Auth State Changes
-// Track Auth State Changes
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
-  updateNavAuthUI();
-
-  if (currentUser) {
-    router("home");
-  } else {
-    // Show a clean welcome/landing state behind the modal, then trigger login
-    const appView = document.getElementById("app-view");
-    appView.innerHTML = `
-      <div class="text-center py-20">
-        <h1 class="text-4xl font-extrabold mb-4">Welcome to MovieNest</h1>
-        <p class="text-slate-400 mb-8">Please sign in to browse and book movie tickets.</p>
-        <button onclick="openAuthModal('login')" class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Get Started</button>
-      </div>
-    `;
-    openAuthModal("login");
-  }
-});
-
 window.updateNavAuthUI = function () {
   const container = document.getElementById("auth-nav-container");
   if (currentUser) {
@@ -544,3 +522,22 @@ window.handleGoogleSignIn = async function () {
     alert("Google Sign-In Failed: " + err.message);
   }
 };
+// Track Auth State Changes
+onAuthStateChanged(auth, (user) => {
+  currentUser = user;
+  updateNavAuthUI();
+
+  if (currentUser) {
+    router("home");
+  } else {
+    const appView = document.getElementById("app-view");
+    appView.innerHTML = `
+      <div class="text-center py-20">
+        <h1 class="text-4xl font-extrabold mb-4">Welcome to MovieNest</h1>
+        <p class="text-slate-400 mb-8">Please sign in to browse and book movie tickets.</p>
+        <button onclick="openAuthModal('login')" class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Get Started</button>
+      </div>
+    `;
+    openAuthModal("login");
+  }
+});
