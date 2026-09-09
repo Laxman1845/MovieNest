@@ -125,9 +125,10 @@ function renderMovieDetails(movie) {
                         <button class="px-4 py-2 bg-rose-600 text-white rounded-lg font-medium">Today</button>
                     </div>
                     <div class="flex gap-3">
-                        <button onclick="proceedToSeats('${movie.id}', '10:00 AM')" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">10:00 AM</button>
-                        <button onclick="proceedToSeats('${movie.id}', '02:30 PM')" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">02:30 PM</button>
-                        <button onclick="proceedToSeats('${movie.id}', '07:00 PM')" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">07:00 PM</button>
+                        
+                        <button onclick='proceedToSeats(${JSON.stringify(movie)}, "10:00 AM")' class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">10:00 AM</button>
+                        <button onclick='proceedToSeats(${JSON.stringify(movie)}, "02:30 PM")' class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">02:30 PM</button>
+                        <button onclick='proceedToSeats(${JSON.stringify(movie)}, "07:00 PM")' class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">07:00 PM</button>
                     </div>
                 </div>
             </div>
@@ -135,12 +136,12 @@ function renderMovieDetails(movie) {
     `;
 }
 
-window.proceedToSeats = function (movieId, timeSlot) {
+window.proceedToSeats = function (movie, timeSlot) {
   if (!currentUser) {
     openAuthModal("login");
     return;
   }
-  router("seats", { movieId, timeSlot });
+  router("seats", { movie, timeSlot });
 };
 
 function renderSeatSelection(data) {
@@ -166,12 +167,12 @@ function renderSeatSelection(data) {
                     <p class="text-sm text-slate-400">Selected Seats: <span id="selected-seats-count" class="text-white font-bold">0</span></p>
                     <p class="text-lg font-bold text-rose-500">₹<span id="total-price">0</span></p>
                 </div>
-                <button onclick="initiateRazorpayPayment('${data.movieId}', '${data.timeSlot}')" class="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Proceed to Payment</button>
+                <button onclick='initiateRazorpayPayment(${JSON.stringify(data.movie)}, "${data.timeSlot}")' class="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Proceed to Payment</button>
             </div>
         </div>
     `;
 
-  const seatDocRef = doc(db, "showSeats", `${data.movieId}_${data.timeSlot}`);
+  const seatDocRef = doc(db, "showSeats", `${data.movie.id}_${data.timeSlot}`);
 
   onSnapshot(seatDocRef, async (docSnap) => {
     let bookedSeats = [];
@@ -220,7 +221,7 @@ function updateBookingSummary() {
   if (priceEl) priceEl.innerText = selected.length * 200;
 }
 
-window.initiateRazorpayPayment = async function (movieId, timeSlot) {
+window.initiateRazorpayPayment = async function (movie, timeSlot) {
   const selected = document.querySelectorAll(".selected-seat");
   if (selected.length === 0) {
     alert("Please select at least one seat.");
@@ -256,108 +257,142 @@ window.initiateRazorpayPayment = async function (movieId, timeSlot) {
     name: "MovieNest",
     description: "Movie Ticket Booking",
     handler: async function (response) {
+      const seatDocRef = doc(db, "showSeats", `${movieId}_${timeSlot}`);
+
       try {
-        const token = await currentUser.getIdToken();
-        const confirmationResponse = await fetch(`${API_BASE_URL}/api/bookings`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            movie_id: movieId,
-            time_slot: timeSlot,
-            seats: seatIds,
-            order_id: response.razorpay_order_id,
-            payment_id: response.razorpay_payment_id,
-            signature: response.razorpay_signature,
-          }),
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(seatDocRef);
+          let currentBooked = snap.exists()
+            ? snap.data().bookedSeats || []
+            : [];
+
+          for (let seat of seatIds) {
+            if (currentBooked.includes(seat)) {
+              throw new Error(
+                `Seat ${seat} was just booked by someone else. Please choose another seat.`,
+              );
+            }
+          }
+
+          transaction.set(
+            seatDocRef,
+            { bookedSeats: [...currentBooked, ...seatIds] },
+            { merge: true },
+          );
         });
-        if (!confirmationResponse.ok) {
-          throw new Error((await confirmationResponse.json()).detail || "Booking confirmation failed.");
-        }
-        const confirmation = await confirmationResponse.json();
+
         const bookingData = {
           userEmail: currentUser.email,
-          timeSlot,
+          movieId: movieId,
+          timeSlot: timeSlot,
           seats: seatIds,
           amount: confirmation.amount,
           paymentId: response.razorpay_payment_id,
         };
 
-        // Generate and download PDF ticket automatically
-        generateTicketPDF(bookingData);
+        // Generate and download PDF ticket automatically with poster
+        await generateTicketPDF(bookingData);
 
         alert("Payment Successful! Booking Confirmed & PDF downloading.");
         router("profile");
       } catch (err) {
         console.error(err);
-        alert(
-          err.message ||
-            "Booking conflict detected. Please select available seats again.",
-        );
-        router("seats", { movieId, timeSlot });
+        alert(err.message || "Booking conflict detected. Please try again.");
+        router("seats", { movie, timeSlot });
       }
     },
-    prefill: {
-      email: currentUser.email,
-    },
-    theme: {
-      color: "#e11d48",
-    },
+    prefill: { email: currentUser.email },
+    theme: { color: "#e11d48" },
   };
 
   var rzp1 = new Razorpay(options);
   rzp1.open();
 };
 
+// Helper to convert image URL to Base64 for jsPDF
+function getBase64ImageFromUrl(imageUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg"));
+    };
+    img.onerror = () => resolve(null); // Fallback if image fails to load
+    img.src = imageUrl;
+  });
+}
+
 // Function to create and download the PDF ticket using jsPDF
-function generateTicketPDF(booking) {
+async function generateTicketPDF(booking) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  doc.setFillColor(15, 23, 42); // Dark slate background matching theme
+  // Dark slate background
+  doc.setFillColor(15, 23, 42);
   doc.rect(0, 0, 210, 297, "F");
 
+  // Header Title
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
-  doc.text("CINEBOOKING TICKET RECEIPT", 20, 30);
+  doc.text("CINEBOOKING TICKET RECEIPT", 20, 25);
 
   doc.setFontSize(12);
   doc.setTextColor(244, 63, 94); // Rose accent color
-  doc.text("Confirmed Booking Pass", 20, 40);
+  doc.text("Confirmed Booking Pass", 20, 33);
 
   doc.setDrawColor(51, 65, 85);
-  doc.line(20, 50, 190, 50);
+  doc.line(20, 38, 190, 38);
 
+  // Render Movie Image if available
+  if (booking.posterUrl) {
+    const base64Img = await getBase64ImageFromUrl(booking.posterUrl);
+    if (base64Img) {
+      doc.addImage(base64Img, "JPEG", 140, 45, 50, 70); // x, y, width, height
+    }
+  }
+
+  // Movie Name Heading
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.text(`Movie: ${booking.movieTitle || "N/A"}`, 20, 52);
+
+  // Details List
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
 
-  let y = 70;
+  let y = 65;
   doc.text(`User Email: ${booking.userEmail}`, 20, y);
-  y += 12;
+  y += 10;
   doc.text(`Showtime Slot: ${booking.timeSlot}`, 20, y);
-  y += 12;
+  y += 10;
   doc.text(`Selected Seats: ${booking.seats.join(", ")}`, 20, y);
-  y += 12;
-  doc.text(`Total Paid Amount: ₹${booking.amount}`, 20, y);
-  y += 12;
+  y += 10;
+  doc.text(`Total Paid Amount: Rs.${booking.amount}`, 20, y);
+  y += 10;
   doc.text(`Razorpay Payment ID: ${booking.paymentId}`, 20, y);
-  y += 12;
+  y += 10;
   doc.text(`Booking Date: ${new Date().toLocaleString()}`, 20, y);
 
-  doc.line(20, y + 15, 190, y + 15);
+  doc.line(20, 125, 190, 125);
   doc.setFontSize(10);
   doc.setTextColor(148, 163, 184);
   doc.text(
     "Please present this ticket confirmation at the entrance counter. Enjoy your movie!",
     20,
-    y + 30,
+    135,
   );
 
-  doc.save(`Movie-Ticket-${booking.timeSlot.replace(/\s+/g, "")}.pdf`);
+  doc.save(
+    `Ticket-${booking.movieTitle ? booking.movieTitle.replace(/\s+/g, "_") : "Booking"}.pdf`,
+  );
 }
 
 async function renderUserProfile() {
@@ -530,22 +565,3 @@ window.handleGoogleSignIn = async function () {
     alert("Google Sign-In Failed: " + err.message);
   }
 };
-// Track Auth State Changes
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
-  updateNavAuthUI();
-
-  if (currentUser) {
-    router("home");
-  } else {
-    const appView = document.getElementById("app-view");
-    appView.innerHTML = `
-      <div class="text-center py-20">
-        <h1 class="text-4xl font-extrabold mb-4">Welcome to MovieNest</h1>
-        <p class="text-slate-400 mb-8">Please sign in to browse and book movie tickets.</p>
-        <button onclick="openAuthModal('login')" class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20">Get Started</button>
-      </div>
-    `;
-    openAuthModal("login");
-  }
-});

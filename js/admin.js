@@ -151,6 +151,7 @@ async function renderAdminMovies() {
   });
 }
 
+// Updated Function: Render Bookings Newest-First with Booking Date & Time
 async function renderAdminBookings() {
   const container = document.getElementById("admin-bookings-list");
   if (!container) return;
@@ -163,16 +164,61 @@ async function renderAdminBookings() {
     return;
   }
 
+  const bookings = [];
   querySnapshot.forEach((docSnap) => {
-    const booking = docSnap.data();
+    bookings.push({ id: docSnap.id, ...docSnap.data() });
+  });
+
+  // Sort bookings newest to oldest
+  bookings.sort((a, b) => {
+    const timeA = a.createdAt?.toDate
+      ? a.createdAt.toDate().getTime()
+      : new Date(a.createdAt || 0).getTime();
+    const timeB = b.createdAt?.toDate
+      ? b.createdAt.toDate().getTime()
+      : new Date(b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+
+  bookings.forEach((booking) => {
+    // Format Booking Date & Exact Time
+    let dateStr = "N/A";
+    let timeStr = "";
+
+    if (booking.createdAt) {
+      const dateObj = booking.createdAt.toDate
+        ? booking.createdAt.toDate()
+        : new Date(booking.createdAt);
+      dateStr = dateObj.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      timeStr = dateObj.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    }
+
+    const seatsList = Array.isArray(booking.seats)
+      ? booking.seats.join(", ")
+      : booking.seats || "N/A";
+
     container.innerHTML += `
             <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-sm">
                 <div>
                     <p class="text-rose-400 font-bold mb-0.5 text-xs">${booking.userEmail}</p>
-                    <p class="text-slate-300 text-xs">Slot: <span class="font-semibold">${booking.timeSlot}</span> | Seats: <span class="text-white font-bold">${booking.seats.join(", ")}</span></p>
+                    <p class="text-slate-300 text-xs">
+                        Slot: <span class="font-semibold text-white">${booking.timeSlot}</span> | Seats: <span class="text-white font-bold">${seatsList}</span>
+                    </p>
+                    <p class="text-slate-500 text-[11px] mt-1">
+                        📅 Date: <span class="text-slate-400 font-medium">${dateStr}</span> 
+                        ${timeStr ? `| 🕒 Time: <span class="text-slate-400 font-medium">${timeStr}</span>` : ""}
+                    </p>
                 </div>
                 <div class="text-right">
-                    <p class="font-bold text-white">₹${booking.amount}</p>
+                    <p class="font-bold text-white">₹${booking.amount || 0}</p>
                 </div>
             </div>
         `;
@@ -192,6 +238,31 @@ async function updateDashboardStats() {
   });
   document.getElementById("stat-total-revenue").innerText = `₹${revenue}`;
 }
+
+// Admin Theme Toggle Handler
+window.toggleAdminTheme = function () {
+  const body = document.body;
+  const btn = document.getElementById("theme-toggle-btn");
+
+  body.classList.toggle("light-theme");
+  const isLight = body.classList.contains("light-theme");
+
+  localStorage.setItem("app-theme", isLight ? "light" : "dark");
+
+  if (btn) {
+    btn.innerText = isLight ? "☀️ Light Mode" : "🌙 Dark Mode";
+  }
+};
+
+// Initialize saved theme on page load
+(function initAdminTheme() {
+  const savedTheme = localStorage.getItem("app-theme");
+  if (savedTheme === "light") {
+    document.body.classList.add("light-theme");
+    const btn = document.getElementById("theme-toggle-btn");
+    if (btn) btn.innerText = "☀️ Light Mode";
+  }
+})();
 
 // import {
 //   doc,

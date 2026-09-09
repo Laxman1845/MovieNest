@@ -82,3 +82,177 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* Updated Refined Light Theme */
+body.light-theme {
+  background-color: #f8fafc !important; /* Soft light background */
+  color: #0f172a !important; /* Dark Slate Primary Text */
+}
+
+/* Base Headings & Titles */
+body.light-theme h1,
+body.light-theme h2,
+body.light-theme h3,
+body.light-theme h4 {
+  color: #0f172a !important;
+}
+
+/* Subtitles, Descriptions, & Email Text */
+body.light-theme p,
+body.light-theme span:not(.text-rose-500) {
+  color: #475569 !important;
+}
+
+/* Navigation Bar & Auth Modals */
+body.light-theme nav,
+body.light-theme #auth-modal > div {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+/* Movie Cards & Containers */
+body.light-theme .bg-slate-900,
+body.light-theme .bg-slate-800 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+}
+
+/* Movie Card Titles & Genre Subtitles Specific Fix */
+body.light-theme #movies-grid h3 {
+  color: #0f172a !important;
+}
+
+body.light-theme #movies-grid p {
+  color: #64748b !important;
+}
+
+/* Book Tickets Button Override */
+body.light-theme #movies-grid button {
+  background-color: #ffe4e6 !important; /* Light rose tint */
+  color: #e11d48 !important; /* Solid Rose Text */
+  font-weight: 600;
+}
+
+body.light-theme #movies-grid button:hover {
+  background-color: #e11d48 !important;
+  color: #ffffff !important;
+}
+
+/* Navigation Buttons (Logout, My Bookings) */
+body.light-theme nav button.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-theme nav button.bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Seat Selection Grid Items */
+body.light-theme #seat-grid button.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-theme #seat-grid button.selected-seat {
+  background-color: #e11d48 !important;
+  color: #ffffff !important;
+}
+
+/* Additional Admin Portal Light Theme Rules */
+body.light-theme #admin-auth-container {
+  background-color: #f8fafc !important;
+}
+
+body.light-theme #admin-auth-container .glass-panel {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme input,
+body.light-theme textarea {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Placeholder Text Color Override for Light Theme */
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder {
+  color: #334155 !important; /* Slate-700 matching the email text */
+  opacity: 1 !important; /* Ensures crisp rendering across browsers */
+}
+
+/* Stat Cards & List Items in Admin Dashboard */
+body.light-theme #admin-dashboard-container .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+body.light-theme #admin-movies-list > div,
+body.light-theme #admin-bookings-list > div {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Admin Login Light Mode Specific Styling */
+body.light-theme #admin-auth-container {
+  background-color: #f8fafc !important; /* Soft light background */
+}
+
+body.light-theme #admin-auth-container .glass-panel {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.05),
+    0 8px 10px -6px rgb(0 0 0 / 0.05) !important;
+}
+
+/* Fix Labels Above Inputs */
+/* Clean, Modern Light Mode Inputs & Placeholders */
+body.light-theme #admin-auth-container label,
+body.light-theme #add-movie-form label {
+  color: #1e293b !important; /* Deep Slate for clean, sharp headers/labels */
+  font-weight: 700 !important;
+}
+
+/* Input Fields - Light Crisp Background */
+body.light-theme input,
+body.light-theme textarea,
+body.light-theme #admin-auth-container input {
+  background-color: #f8fafc !important; /* Crisp, clean off-white slate background */
+  color: #0f172a !important; /* Rich dark text for entered values */
+  border: 1.5px solid #cbd5e1 !important; /* Subtle, defined border */
+}
+
+/* Input Focus Ring - Interactive Accent */
+body.light-theme input:focus,
+body.light-theme textarea:focus,
+body.light-theme #admin-auth-container input:focus {
+  background-color: #ffffff !important; /* Pure white when active */
+  border-color: #e11d48 !important; /* Matching Rose accent highlight */
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12) !important;
+  outline: none !important;
+}
+
+/* High Contrast Placeholder Text Color */
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder,
+body.light-theme #admin-auth-container input::placeholder {
+  color: #475569 !important; /* Slate-600: High contrast, crisp placeholder color */
+  opacity: 1 !important;
+}
+
+/* Back Link Fix */
+body.light-theme #admin-auth-container a {
+  color: #64748b !important;
+}
+
+body.light-theme #admin-auth-container a:hover {
+  color: #0f172a !important;
+}
