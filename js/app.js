@@ -12,14 +12,13 @@ import {
   getDocs,
   doc,
   getDoc,
-  addDoc,
   setDoc,
   updateDoc,
   onSnapshot,
   query,
   where,
-  runTransaction,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+const API_BASE_URL = window.MOVIENEST_API_URL || "http://127.0.0.1:8000";
 
 let currentUser = null;
 let currentViewData = {};
@@ -178,8 +177,6 @@ function renderSeatSelection(data) {
     let bookedSeats = [];
     if (docSnap.exists()) {
       bookedSeats = docSnap.data().bookedSeats || [];
-    } else {
-      await setDoc(seatDocRef, { bookedSeats: [] });
     }
 
     const seatGrid = document.getElementById("seat-grid");
@@ -231,51 +228,62 @@ window.initiateRazorpayPayment = async function (movieId, timeSlot) {
   }
 
   const seatIds = Array.from(selected).map((el) => el.innerText);
-  const amount = selected.length * 200 * 100;
 
-  var options = {
-    key: "rzp_test_TJ0KhAbQ3ZjQYG",
-    amount: amount,
-    currency: "INR",
+  let order;
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(`${API_BASE_URL}/api/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ movie_id: movieId, time_slot: timeSlot, seats: seatIds }),
+    });
+    if (!response.ok) throw new Error((await response.json()).detail || "Unable to start payment.");
+    order = await response.json();
+  } catch (err) {
+    console.error("Unable to create payment order:", err);
+    alert(err.message || "Unable to start payment. Please try again.");
+    return;
+  }
+
+  const options = {
+    key: order.keyId,
+    order_id: order.orderId,
+    amount: order.amount,
+    currency: order.currency,
     name: "MovieNest",
     description: "Movie Ticket Booking",
     handler: async function (response) {
-      const seatDocRef = doc(db, "showSeats", `${movieId}_${timeSlot}`);
-
       try {
-        await runTransaction(db, async (transaction) => {
-          const snap = await transaction.get(seatDocRef);
-          let currentBooked = snap.exists()
-            ? snap.data().bookedSeats || []
-            : [];
-
-          for (let seat of seatIds) {
-            if (currentBooked.includes(seat)) {
-              throw new Error(
-                `Seat ${seat} was just booked by someone else. Please choose another seat.`,
-              );
-            }
-          }
-
-          transaction.set(
-            seatDocRef,
-            { bookedSeats: [...currentBooked, ...seatIds] },
-            { merge: true },
-          );
+        const token = await currentUser.getIdToken();
+        const confirmationResponse = await fetch(`${API_BASE_URL}/api/bookings`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            movie_id: movieId,
+            time_slot: timeSlot,
+            seats: seatIds,
+            order_id: response.razorpay_order_id,
+            payment_id: response.razorpay_payment_id,
+            signature: response.razorpay_signature,
+          }),
         });
-
+        if (!confirmationResponse.ok) {
+          throw new Error((await confirmationResponse.json()).detail || "Booking confirmation failed.");
+        }
+        const confirmation = await confirmationResponse.json();
         const bookingData = {
-          userId: currentUser.uid,
           userEmail: currentUser.email,
-          movieId: movieId,
-          timeSlot: timeSlot,
+          timeSlot,
           seats: seatIds,
-          amount: amount / 100,
+          amount: confirmation.amount,
           paymentId: response.razorpay_payment_id,
-          createdAt: new Date(),
         };
-
-        await addDoc(collection(db, "bookings"), bookingData);
 
         // Generate and download PDF ticket automatically
         generateTicketPDF(bookingData);
