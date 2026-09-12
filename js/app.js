@@ -853,10 +853,13 @@ function renderSeatSelection(data) {
       <h2 class="text-xl font-bold mb-1 text-center">Select Your Seats</h2>
       <p class="text-sm text-slate-400 text-center mb-6">Show Time: ${data.timeSlot}</p>
 
-      <div class="w-full bg-slate-800 h-2 rounded mb-10 text-center text-xs text-slate-500 uppercase tracking-widest pt-3">Screen This Way</div>
-
-      <div class="grid grid-cols-8 gap-3 max-w-md mx-auto mb-8" id="seat-grid"></div>
-
+<div class="w-full max-w-xl mx-auto mb-10 text-center">
+  <div class="h-2 bg-rose-500 rounded-full shadow-[0_0_25px_rgba(244,63,94,0.7)]"></div>
+  <p class="text-xs text-rose-400 uppercase tracking-[0.3em] mt-3 font-semibold">
+    Screen This Way
+  </p>
+</div>
+<div id="seat-grid" class="seat-grid"></div>
       <div class="flex justify-center gap-6 mb-6 text-xs text-slate-400">
         <div class="flex items-center gap-2"><div class="w-3 h-3 bg-slate-800 border border-slate-700 rounded"></div> Available</div>
         <div class="flex items-center gap-2"><div class="w-3 h-3 bg-rose-600 rounded"></div> Selected</div>
@@ -885,10 +888,10 @@ function renderSeatSelection(data) {
 
     const seatGrid = document.getElementById("seat-grid");
     seatGrid.innerHTML = "";
-    const rows = ["A", "B", "C", "D"];
+    const rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
     rows.forEach((row) => {
-      for (let i = 1; i <= 6; i++) {
+      for (let i = 1; i <= 10; i++) {
         const seatId = `${row}${i}`;
         const isBooked = bookedSeats.includes(seatId);
         const seatBtn = document.createElement("button");
