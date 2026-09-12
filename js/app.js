@@ -257,7 +257,7 @@ window.initiateRazorpayPayment = async function (movie, timeSlot) {
   const amount = selected.length * 200 * 100;
 
   var options = {
-    key: "rzp_test_TJ0KhAbQ3ZjQYG",
+    key: "rzp_test_Tb3ytl5Wq7Sd9Q",
     amount: amount,
     currency: "INR",
     name: "MovieNest",
