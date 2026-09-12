@@ -350,7 +350,7 @@ async function generateTicketPDF(booking) {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
-  doc.text("CINEBOOKING TICKET RECEIPT", 20, 25);
+  doc.text("MOVIE TICKET RECEIPT", 20, 25);
 
   doc.setFontSize(12);
   doc.setTextColor(244, 63, 94); // Rose accent color
