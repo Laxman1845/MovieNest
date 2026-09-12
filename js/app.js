@@ -675,12 +675,44 @@ window.updateNavAuthUI = function () {
   const container = document.getElementById("auth-nav-container");
   if (currentUser) {
     container.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <button onclick="router('profile')" class="text-sm font-medium hover:text-rose-500">My Bookings</button>
-        <span class="text-slate-400 text-sm">${currentUser.email}</span>
-        <button onclick="handleLogout()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-sm transition">Logout</button>
-      </div>
-    `;
+    <div class="flex items-center gap-3">
+
+        <div class="profile-container">
+            <button
+                type="button"
+                class="profile-icon"
+                aria-label="Profile"
+            >
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M20 21a8 8 0 0 0-16 0"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </button>
+
+            <div class="profile-tooltip">
+                ${currentUser.email}
+            </div>
+        </div>
+
+        <button
+            onclick="handleLogout()"
+            class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-medium transition text-sm border border-slate-700"
+        >
+            Logout
+        </button>
+
+    </div>
+`;
   } else {
     container.innerHTML = `
       <div class="flex space-x-2">
@@ -773,15 +805,36 @@ function renderMovieDetails(movie) {
             <button class="px-4 py-2 bg-rose-600 text-white rounded-lg font-medium">Today</button>
           </div>
           <div class="flex gap-3">
+    
+    <button id="show-10am" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">
+        10:00 AM
+    </button>
 
-            <button onclick='proceedToSeats(${JSON.stringify(movie)}, "10:00 AM")' class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">10:00 AM</button>
-            <button onclick='proceedToSeats(${JSON.stringify(movie)}, "02:30 PM")' class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">02:30 PM</button>
-            <button onclick='proceedToSeats(${JSON.stringify(movie)}, "07:00 PM")' class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">07:00 PM</button>
-          </div>
+    <button id="show-230pm" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">
+        02:30 PM
+    </button>
+
+    <button id="show-7pm" class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition">
+        07:00 PM
+    </button>
+    
+</div>
         </div>
       </div>
     </div>
-  `;
+    `;
+
+  document.getElementById("show-10am").onclick = () => {
+    proceedToSeats(movie, "10:00 AM");
+  };
+
+  document.getElementById("show-230pm").onclick = () => {
+    proceedToSeats(movie, "02:30 PM");
+  };
+
+  document.getElementById("show-7pm").onclick = () => {
+    proceedToSeats(movie, "07:00 PM");
+  };
 }
 
 window.proceedToSeats = function (movie, timeSlot) {
