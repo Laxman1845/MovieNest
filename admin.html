@@ -99,7 +99,15 @@
             <span id="admin-user-email" class="text-white font-bold"></span>
           </p>
         </div>
+        <!-- Inside admin.html: Find the header section with Home & Logout buttons and update it -->
         <div class="flex gap-4">
+          <button
+            onclick="toggleAdminTheme()"
+            id="theme-toggle-btn"
+            class="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center"
+          >
+            🌙 Dark Mode
+          </button>
           <a
             href="index.html"
             class="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center"

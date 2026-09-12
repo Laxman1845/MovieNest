@@ -575,3 +575,29 @@ window.handleGoogleSignIn = async function () {
     alert("Google Sign-In Failed: " + err.message);
   }
 };
+
+// Theme Switcher Logic
+window.toggleTheme = function () {
+  const body = document.body;
+  const btn = document.getElementById("theme-toggle-btn");
+
+  body.classList.toggle("light-theme");
+  const isLight = body.classList.contains("light-theme");
+
+  // Save preference
+  localStorage.setItem("app-theme", isLight ? "light" : "dark");
+
+  if (btn) {
+    btn.innerText = isLight ? "☀️ Light Mode" : "🌙 Dark Mode";
+  }
+};
+
+// Initialize Theme Preference on Load
+(function initTheme() {
+  const savedTheme = localStorage.getItem("app-theme");
+  if (savedTheme === "light") {
+    document.body.classList.add("light-theme");
+    const btn = document.getElementById("theme-toggle-btn");
+    if (btn) btn.innerText = "☀️ Light Mode";
+  }
+})();

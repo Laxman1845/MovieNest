@@ -33,16 +33,25 @@
               >MOVIENEST</span
             >
           </div>
+          <!-- Locate the navbar inside index.html and update the button group -->
           <div class="flex items-center space-x-4">
             <button
-              onclick="window.location.href = 'admin.html'"
+              onclick="toggleTheme()"
+              id="theme-toggle-btn"
               class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-medium transition text-sm border border-slate-700"
-              style="background-color: rgb(225, 29, 72)"
+            >
+              🌙 Dark Mode
+            </button>
+
+            <button
+              onclick="window.location.href = 'admin.html'"
+              class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 rounded-lg font-medium transition text-sm"
             >
               Admin
             </button>
+
             <div id="auth-nav-container">
-              <!-- Dynamically populated based on Auth state -->
+              <!-- Auth controls populate dynamically -->
               <button
                 onclick="openAuthModal('login')"
                 class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium transition"
