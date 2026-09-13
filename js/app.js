@@ -50,20 +50,260 @@ onAuthStateChanged(auth, (user) => {
 
 window.updateNavAuthUI = function () {
   const container = document.getElementById("auth-nav-container");
+
+  if (!container) return;
+
   if (currentUser) {
     container.innerHTML = `
-    
-`;
+      <div class="flex items-center gap-2 sm:gap-3">
+
+        <!-- MY BOOKINGS -->
+        <button
+          onclick="router('profile')"
+          class="group flex items-center justify-center gap-2
+                 h-10 px-3 sm:px-4
+                 rounded-lg
+                 bg-slate-800
+                 border border-slate-700
+                 hover:bg-slate-700
+                 hover:border-slate-600
+                 text-slate-200
+                 transition-all duration-200"
+          title="My Bookings"
+        >
+
+          <!-- Calendar / Ticket Icon -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="w-[18px] h-[18px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="17" rx="2"/>
+            <path d="M16 2v4"/>
+            <path d="M8 2v4"/>
+            <path d="M3 10h18"/>
+            <path d="M8 14h2"/>
+            <path d="M14 14h2"/>
+            <path d="M8 18h2"/>
+            <path d="M14 18h2"/>
+          </svg>
+
+          <span class="hidden sm:inline text-sm font-medium">
+            My Bookings
+          </span>
+
+        </button>
+
+
+        <!-- PROFILE -->
+        <div class="relative group">
+
+          <button
+            type="button"
+            class="
+              w-10 h-10
+              rounded-full
+              bg-slate-800
+              border border-slate-700
+              hover:bg-slate-700
+              hover:border-rose-500
+              text-slate-300
+              hover:text-white
+              flex items-center justify-center
+              transition-all duration-200
+              focus:outline-none
+            "
+            aria-label="Profile"
+          >
+
+            <!-- User Icon -->
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-[20px] h-[20px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="8" r="3.5"/>
+              <path d="M4.5 21c.8-4.1 3.5-6.5 7.5-6.5s6.7 2.4 7.5 6.5"/>
+            </svg>
+
+          </button>
+
+
+          <!-- EMAIL TOOLTIP -->
+          <div
+            class="
+              absolute
+              right-0
+              top-full
+              mt-2
+              hidden
+              group-hover:block
+              z-[100]
+            "
+          >
+
+            <div
+              class="
+                bg-slate-900
+                border border-slate-700
+                text-slate-200
+                text-xs
+                px-4 py-2.5
+                rounded-lg
+                shadow-2xl
+                whitespace-nowrap
+              "
+            >
+
+              <div class="text-slate-500 text-[10px] uppercase tracking-wider mb-1">
+                Signed in as
+              </div>
+
+              <div class="font-medium text-slate-200">
+                ${currentUser.email || "User"}
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- LOGOUT -->
+        <button
+          onclick="handleLogout()"
+          class="
+            flex items-center justify-center gap-2
+            h-10 px-3 sm:px-4
+            rounded-lg
+            bg-slate-800
+            border border-slate-700
+            hover:bg-slate-700
+            hover:border-slate-600
+            text-slate-200
+            transition-all duration-200
+          "
+          title="Logout"
+        >
+
+          <!-- Logout / Door Icon -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="w-[18px] h-[18px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M13 5h6v14h-6"/>
+            <path d="M3 12h10"/>
+            <path d="M8 7l5 5-5 5"/>
+          </svg>
+
+          <span class="hidden sm:inline text-sm font-medium">
+            Logout
+          </span>
+
+        </button>
+
+      </div>
+    `;
   } else {
     container.innerHTML = `
-      <div class="flex space-x-2">
-        <button onclick="openAuthModal('login')" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Login</button>
-        <button onclick="openAuthModal('signup')" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Sign Up</button>
+      <div class="flex items-center gap-2">
+
+        <!-- LOGIN -->
+        <button
+          onclick="openAuthModal('login')"
+          class="
+            flex items-center justify-center gap-2
+            h-10 px-4
+            rounded-lg
+            bg-slate-800
+            border border-slate-700
+            hover:bg-slate-700
+            text-white
+            text-sm
+            font-medium
+            transition-all duration-200
+          "
+        >
+
+          <!-- Login Arrow Icon -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="w-[17px] h-[17px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <path d="M10 17l5-5-5-5"/>
+            <path d="M15 12H3"/>
+          </svg>
+
+          <span>Login</span>
+
+        </button>
+
+
+        <!-- SIGN UP -->
+        <button
+          onclick="openAuthModal('signup')"
+          class="
+            flex items-center justify-center gap-2
+            h-10 px-4
+            rounded-lg
+            bg-rose-600
+            hover:bg-rose-700
+            text-white
+            text-sm
+            font-medium
+            transition-all duration-200
+          "
+        >
+
+          <!-- User Plus Icon -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="w-[17px] h-[17px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="9" cy="8" r="3.5"/>
+            <path d="M3.5 20c.7-3.5 2.7-5.5 5.5-5.5s4.8 2 5.5 5.5"/>
+            <path d="M18 8v6"/>
+            <path d="M21 11h-6"/>
+          </svg>
+
+          <span>Sign Up</span>
+
+        </button>
+
       </div>
     `;
   }
 };
-
 // Router Handler
 // Router Handler
 window.router = async function (view, data = null) {
