@@ -52,50 +52,7 @@ window.updateNavAuthUI = function () {
   const container = document.getElementById("auth-nav-container");
   if (currentUser) {
     container.innerHTML = `
-    <div class="flex items-center gap-3">
-
-    <button
-        onclick="router('profile')"
-        class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-medium transition text-sm border border-slate-700"
-    >
-        My Bookings
-    </button>
-
-    <div class="profile-container">
-        <button
-            type="button"
-            class="profile-icon"
-            aria-label="Profile"
-        >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            >
-                <path d="M20 21a8 8 0 0 0-16 0"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-        </button>
-
-        <div class="profile-tooltip">
-            ${currentUser.email}
-        </div>
-    </div>
-
-    <button
-        onclick="handleLogout()"
-        class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-medium transition text-sm border border-slate-700"
-    >
-        Logout
-    </button>
-
-</div>
+    
 `;
   } else {
     container.innerHTML = `
