@@ -29,11 +29,23 @@ def init_firebase() -> None:
             cred = credentials.Certificate(cred_path)
         elif os.getenv("FIREBASE_PRIVATE_KEY"):
             # Render (and other hosts without the file): build credentials from env vars
+            raw_key = os.environ["FIREBASE_PRIVATE_KEY"].strip()
+            # Strip accidental surrounding quotes (common when copy-pasting from JSON)
+            if raw_key.startswith('"') and raw_key.endswith('"'):
+                raw_key = raw_key[1:-1]
+            private_key = raw_key.replace("\\n", "\n")
+
+            if "BEGIN PRIVATE KEY" not in private_key:
+                raise RuntimeError(
+                    "FIREBASE_PRIVATE_KEY does not look like a valid PEM key. "
+                    "Check that it was pasted without surrounding quotes and wasn't truncated."
+                )
+
             cred = credentials.Certificate(
                 {
                     "type": "service_account",
                     "project_id": os.environ["FIREBASE_PROJECT_ID"],
-                    "private_key": os.environ["FIREBASE_PRIVATE_KEY"].replace("\\n", "\n"),
+                    "private_key": private_key,
                     "client_email": os.environ["FIREBASE_CLIENT_EMAIL"],
                     "token_uri": "https://oauth2.googleapis.com/token",
                 }
