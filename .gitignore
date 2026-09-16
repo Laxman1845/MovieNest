@@ -2,3 +2,7 @@
 backend/.env
 service-account*.json
 __pycache__/
+
+backend/serviceAccountKey.json
+.env
+backend/.env

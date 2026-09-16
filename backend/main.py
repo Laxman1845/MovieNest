@@ -1,18 +1,20 @@
 import hashlib
 import hmac
-import json
 import os
 import re
 from typing import Annotated
 
+from dotenv import load_dotenv
 import firebase_admin
-import razorpay
-from fastapi import Depends, FastAPI, Header, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials, firestore
-from google.cloud.firestore_v1 import transactional
+from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+import razorpay
+
+# Load environment variables from .env file
+load_dotenv()
 
 PRICE_PER_SEAT = 200
 VALID_TIME_SLOTS = {"10:00 AM", "02:30 PM", "07:00 PM"}
@@ -20,25 +22,30 @@ SEAT_PATTERN = re.compile(r"^[A-D][1-6]$")
 
 
 def init_firebase() -> None:
-    if firebase_admin._apps:
-        return
-    service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if service_account_json:
-        credential = credentials.Certificate(json.loads(service_account_json))
-    else:
-        credential = credentials.ApplicationDefault()
-    firebase_admin.initialize_app(credential)
+    if not firebase_admin._apps:
+        cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "serviceAccountKey.json")
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+        else:
+            firebase_admin.initialize_app()
 
 
 init_firebase()
 db = firestore.client()
+
 app = FastAPI(title="MovieNest API", version="1.0.0")
+
+# CORS setup
+cors_origins_raw = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500")
+allow_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500").split(",")],
+    allow_origins=allow_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 
@@ -71,8 +78,10 @@ class PaymentConfirmation(BookingInput):
 def get_current_user(authorization: Annotated[str | None, Header()] = None) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign-in required.")
+    
+    token = authorization.removeprefix("Bearer ").strip()
     try:
-        return firebase_auth.verify_id_token(authorization.removeprefix("Bearer "))
+        return firebase_auth.verify_id_token(token)
     except (ValueError, firebase_auth.InvalidIdTokenError, firebase_auth.ExpiredIdTokenError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired sign-in token.")
 
@@ -96,19 +105,24 @@ def create_order(payload: BookingInput, user: dict = Depends(get_current_user)) 
     if not movie.exists:
         raise HTTPException(status_code=404, detail="Movie not found.")
 
+    key_id = os.getenv("RAZORPAY_KEY_ID")
     order = razorpay_client().order.create(
         {
             "amount": len(payload.seats) * PRICE_PER_SEAT * 100,
             "currency": "INR",
             "receipt": f"movie_{payload.movie_id}_{user['uid']}"[:40],
-            "notes": {"movieId": payload.movie_id, "timeSlot": payload.time_slot, "userId": user["uid"]},
+            "notes": {
+                "movieId": payload.movie_id,
+                "timeSlot": payload.time_slot,
+                "userId": user["uid"],
+            },
         }
     )
     return {
         "orderId": order["id"],
         "amount": order["amount"],
         "currency": order["currency"],
-        "keyId": os.environ["RAZORPAY_KEY_ID"],
+        "keyId": key_id,
     }
 
 
@@ -117,11 +131,14 @@ def confirm_booking(payload: PaymentConfirmation, user: dict = Depends(get_curre
     key_secret = os.getenv("RAZORPAY_KEY_SECRET")
     if not key_secret:
         raise HTTPException(status_code=500, detail="Payment service is not configured.")
+
+    # Verify signature
     expected_signature = hmac.new(
         key_secret.encode(),
         f"{payload.order_id}|{payload.payment_id}".encode(),
         hashlib.sha256,
     ).hexdigest()
+
     if not hmac.compare_digest(expected_signature, payload.signature):
         raise HTTPException(status_code=403, detail="Payment verification failed.")
 
@@ -133,13 +150,15 @@ def confirm_booking(payload: PaymentConfirmation, user: dict = Depends(get_curre
     booking_ref = db.collection("bookings").document()
     transaction = db.transaction()
 
-    @transactional
-    def reserve_seats(transaction):
-        seat_snapshot = seat_ref.get(transaction=transaction)
+    @firestore.transactional
+    def reserve_seats(txn):
+        seat_snapshot = seat_ref.get(transaction=txn)
         booked_seats = seat_snapshot.to_dict().get("bookedSeats", []) if seat_snapshot.exists else []
+        
         if any(seat in booked_seats for seat in payload.seats):
             raise HTTPException(status_code=409, detail="One or more selected seats were just booked.")
-        booking = {
+
+        booking_data = {
             "userId": user["uid"],
             "userEmail": user.get("email", ""),
             "movieId": payload.movie_id,
@@ -151,9 +170,10 @@ def confirm_booking(payload: PaymentConfirmation, user: dict = Depends(get_curre
             "status": "confirmed",
             "createdAt": firestore.SERVER_TIMESTAMP,
         }
-        transaction.set(seat_ref, {"bookedSeats": booked_seats + payload.seats}, merge=True)
-        transaction.create(booking_ref, booking)
-        return booking
+        
+        txn.set(seat_ref, {"bookedSeats": booked_seats + payload.seats}, merge=True)
+        txn.create(booking_ref, booking_data)
+        return booking_data
 
     try:
         booking = reserve_seats(transaction)
@@ -163,3 +183,8 @@ def confirm_booking(payload: PaymentConfirmation, user: dict = Depends(get_curre
         raise HTTPException(status_code=500, detail="Booking could not be completed.") from error
 
     return {"bookingId": booking_ref.id, "amount": booking["amount"]}
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"message": "MovieNest API is running"}
+
+  
