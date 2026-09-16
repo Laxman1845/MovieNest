@@ -25,10 +25,26 @@ def init_firebase() -> None:
     if not firebase_admin._apps:
         cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "serviceAccountKey.json")
         if os.path.exists(cred_path):
+            # Local dev: use the service account JSON file if present
             cred = credentials.Certificate(cred_path)
-            firebase_admin.initialize_app(cred)
+        elif os.getenv("FIREBASE_PRIVATE_KEY"):
+            # Render (and other hosts without the file): build credentials from env vars
+            cred = credentials.Certificate(
+                {
+                    "type": "service_account",
+                    "project_id": os.environ["FIREBASE_PROJECT_ID"],
+                    "private_key": os.environ["FIREBASE_PRIVATE_KEY"].replace("\\n", "\n"),
+                    "client_email": os.environ["FIREBASE_CLIENT_EMAIL"],
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+            )
         else:
-            firebase_admin.initialize_app()
+            raise RuntimeError(
+                "No Firebase credentials found. Set FIREBASE_PROJECT_ID, "
+                "FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY env vars, "
+                "or provide a serviceAccountKey.json file locally."
+            )
+        firebase_admin.initialize_app(cred)
 
 
 init_firebase()
@@ -186,5 +202,3 @@ def confirm_booking(payload: PaymentConfirmation, user: dict = Depends(get_curre
 @app.get("/")
 def root() -> dict[str, str]:
     return {"message": "MovieNest API is running"}
-
-  
