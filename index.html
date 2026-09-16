@@ -3,17 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Movie Ticket Booking</title>
-    <!-- Vercel Web Analytics -->
-    <script>
-      window.va =
-        window.va ||
-        function () {
-          (window.vaq = window.vaq || []).push(arguments);
-        };
-    </script>
-    <script defer src="/_vercel/insights/script.js"></script>
-
+    <title>subash - Movie Ticket Booking</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Razorpay Checkout Script -->
@@ -63,7 +53,7 @@
         </div>
       </div>
     </nav>
-
+    
     <!-- Main Dynamic Container -->
     <main id="app-view" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Rendered dynamically via app.js -->
@@ -152,84 +142,79 @@
               Password
             </label>
 
-            <div>
-  <label class="block text-sm font-medium text-slate-400 mb-1">
-    Password
-  </label>
+            <div class="relative">
+              <input
+                type="password"
+                id="auth-password"
+                required
+                minlength="6"
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 pr-12 text-white focus:outline-none focus:border-rose-500"
+              />
 
-  <div class="relative">
-    <input
-      type="password"
-      id="auth-password"
-      required
-      minlength="6"
-      class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 pr-12 text-white focus:outline-none focus:border-rose-500"
-    />
+              <button
+                type="button"
+                id="toggle-password"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"
+                aria-label="Show password"
+              >
 
-    <button
-      type="button"
-      id="toggle-password"
-      class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"
-      aria-label="Show password"
-    >
+                <svg
+                  id="eye-open"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
 
-      <svg
-        id="eye-open"
-        xmlns="http://www.w3.org/2000/svg"
-        class="w-5 h-5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-        />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  />
+                </svg>
 
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-        />
-      </svg>
+                <svg
+                  id="eye-closed"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5 hidden"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 012.44-4.122"
+                  />
 
-      <svg
-        id="eye-closed"
-        xmlns="http://www.w3.org/2000/svg"
-        class="w-5 h-5 hidden"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 012.44-4.122"
-        />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6.223 6.223A9.955 9.955 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.97 9.97 0 01-4.132 5.411"
+                  />
 
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M6.223 6.223A9.955 9.955 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.97 9.97 0 01-4.132 5.411"
-        />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 3l18 18"
+                  />
+                </svg>
 
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M3 3l18 18"
-        />
-      </svg>
+              </button>
+            </div>
 
-    </button>
-  </div>
-
-  <p class="text-xs text-slate-500 mt-1">
-    Must be at least 6 characters.
-  </p>
-</div>
+            <p class="text-xs text-slate-500 mt-1">
+              Must be at least 6 characters.
+            </p>
+          </div>
 
           <button
             type="submit"
