@@ -179,7 +179,7 @@ window.updateNavAuthUI = function () {
         </button>
 
         <div
-          class="absolute right-0 top-full mt-2 hidden group-hover:block z-[100]"
+          class="absolute right-0 top-full mt-0 pt-2 hidden group-hover:block z-[100]"
         >
           <div
             class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 min-w-[230px]"
