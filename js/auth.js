@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
@@ -15,9 +16,19 @@ export async function registerUser(email, password) {
       email,
       password,
     );
-    return { success: true, user: userCredential.user };
+
+    await sendEmailVerification(userCredential.user);
+
+    return {
+      success: true,
+      user: userCredential.user,
+      message: "Verification email sent successfully.",
+    };
   } catch (error) {
-    return { success: false, message: error.message };
+    return {
+      success: false,
+      message: error.message,
+    };
   }
 }
 
@@ -49,12 +60,16 @@ export async function logoutUser() {
 export async function resetPassword(email) {
   try {
     await sendPasswordResetEmail(auth, email);
+
     return {
       success: true,
       message: "Password reset email sent successfully.",
     };
   } catch (error) {
-    return { success: false, message: error.message };
+    return {
+      success: false,
+      message: error.message,
+    };
   }
 }
 
@@ -63,4 +78,28 @@ export function initAuthListener(callback) {
   onAuthStateChanged(auth, (user) => {
     callback(user);
   });
+}
+
+//6 normal email verification
+export async function registerUser(email, password) {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password,
+    );
+
+    await sendEmailVerification(userCredential.user);
+
+    return {
+      success: true,
+      user: userCredential.user,
+      message: "Verification email sent. Please verify your email.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
 }
