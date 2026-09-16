@@ -25,7 +25,9 @@ import {
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const API_BASE_URL = window.MOVIENEST_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL =
+  window.MOVIENEST_API_URL ||
+  "http://127.0.0.1:8000";
 
 let currentUser = null;
 let currentViewData = {};
@@ -36,13 +38,72 @@ let currentAuthMode = "login";
    ============================================================ */
 
 let selectedSeatIds = new Set();
-
 let seatLocksUnsubscribe = null;
 let bookedSeatsUnsubscribe = null;
 let seatLockTimer = null;
 
 const SEAT_PRICE = 200;
 const SEAT_LOCK_DURATION = 10 * 60 * 1000;
+
+/* ============================================================
+   ERROR MESSAGE HELPER
+   ============================================================ */
+
+function getErrorMessage(error, fallback = "Something went wrong.") {
+  if (error == null) return fallback;
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error instanceof Error && typeof error.message === "string") {
+    return error.message;
+  }
+
+  if (typeof error.message === "string") {
+    return error.message;
+  }
+
+  if (error.message && typeof error.message === "object") {
+    const nested = getErrorMessage(error.message, "");
+    if (nested) return nested;
+  }
+
+  if (typeof error.detail === "string") {
+    return error.detail;
+  }
+
+  if (error.detail && typeof error.detail === "object") {
+    const nested = getErrorMessage(error.detail, "");
+    if (nested) return nested;
+  }
+
+  if (Array.isArray(error)) {
+    const messages = error
+      .map((item) => getErrorMessage(item, ""))
+      .filter(Boolean);
+
+    if (messages.length) {
+      return messages.join(", ");
+    }
+  }
+
+  if (typeof error.code === "string" && error.code) {
+    return error.code;
+  }
+
+  try {
+    const json = JSON.stringify(error);
+
+    if (json && json !== "{}") {
+      return json;
+    }
+  } catch (_) {
+    // Ignore JSON serialization errors.
+  }
+
+  return fallback;
+}
 
 /* ============================================================
    AUTH STATE
@@ -60,24 +121,26 @@ onAuthStateChanged(auth, (user) => {
 
     const appView = document.getElementById("app-view");
 
-    appView.innerHTML = `
-      <div class="text-center py-20">
-        <h1 class="text-4xl font-extrabold mb-4">
-          Welcome to MovieNest
-        </h1>
+    if (appView) {
+      appView.innerHTML = `
+        <div class="text-center py-20">
+          <h1 class="text-4xl font-extrabold mb-4">
+            Welcome to MovieNest
+          </h1>
 
-        <p class="text-slate-400 mb-8">
-          Please sign in to browse and book movie tickets.
-        </p>
+          <p class="text-slate-400 mb-8">
+            Please sign in to browse and book movie tickets.
+          </p>
 
-        <button
-          onclick="openAuthModal('login')"
-          class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20"
-        >
-          Get Started
-        </button>
-      </div>
-    `;
+          <button
+            onclick="openAuthModal('login')"
+            class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-rose-600/20"
+          >
+            Get Started
+          </button>
+        </div>
+      `;
+    }
 
     openAuthModal("login");
   }
@@ -95,7 +158,6 @@ window.updateNavAuthUI = function () {
   if (currentUser) {
     container.innerHTML = `
       <div class="relative group">
-
         <button
           type="button"
           class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-200 transition"
@@ -123,7 +185,6 @@ window.updateNavAuthUI = function () {
           <div
             class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 min-w-[230px]"
           >
-
             <p class="text-xs text-slate-500 mb-1">
               Signed in as
             </p>
@@ -147,16 +208,13 @@ window.updateNavAuthUI = function () {
             >
               Logout
             </button>
-
           </div>
         </div>
-
       </div>
     `;
   } else {
     container.innerHTML = `
       <div class="flex space-x-2">
-
         <button
           onclick="openAuthModal('login')"
           class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm"
@@ -170,7 +228,6 @@ window.updateNavAuthUI = function () {
         >
           Sign Up
         </button>
-
       </div>
     `;
   }
@@ -186,10 +243,6 @@ window.router = async function (view, data = null) {
     return;
   }
 
-  /*
-   * If leaving seat selection, stop Firestore listeners
-   * and timer.
-   */
   if (view !== "seats") {
     cleanupSeatListeners();
     selectedSeatIds.clear();
@@ -199,7 +252,7 @@ window.router = async function (view, data = null) {
 
   if (!appView) return;
 
-  currentViewData = data;
+  currentViewData = data || {};
 
   if (view === "home") {
     appView.innerHTML = `
@@ -230,7 +283,7 @@ async function fetchMovies() {
   try {
     const querySnapshot = await getDocs(collection(db, "movies"));
 
-    let movies = [];
+    const movies = [];
 
     querySnapshot.forEach((docSnap) => {
       movies.push({
@@ -253,9 +306,10 @@ async function fetchMovies() {
 function renderHome(movies) {
   const appView = document.getElementById("app-view");
 
+  if (!appView) return;
+
   appView.innerHTML = `
     <div class="mb-8">
-
       <h1 class="text-3xl font-extrabold mb-2">
         Now Showing
       </h1>
@@ -263,7 +317,6 @@ function renderHome(movies) {
       <p class="text-slate-400">
         Book tickets for the latest blockbuster movies.
       </p>
-
     </div>
 
     <div
@@ -279,6 +332,8 @@ function renderHome(movies) {
   `;
 
   const grid = document.getElementById("movies-grid");
+
+  if (!grid) return;
 
   movies.forEach((movie) => {
     const card = document.createElement("div");
@@ -296,9 +351,7 @@ function renderHome(movies) {
       >
 
       <div class="p-4 flex flex-col flex-grow justify-between">
-
         <div>
-
           <h3 class="font-bold text-lg mb-1">
             ${escapeHTML(movie.title || "Untitled Movie")}
           </h3>
@@ -306,7 +359,6 @@ function renderHome(movies) {
           <p class="text-sm text-slate-400">
             ${escapeHTML(movie.genre || "Action/Drama")}
           </p>
-
         </div>
 
         <button
@@ -314,7 +366,6 @@ function renderHome(movies) {
         >
           Book Tickets
         </button>
-
       </div>
     `;
 
@@ -327,9 +378,14 @@ function renderHome(movies) {
    ============================================================ */
 
 function renderMovieDetails(movie) {
-  if (!movie) return router("home");
+  if (!movie) {
+    router("home");
+    return;
+  }
 
   const appView = document.getElementById("app-view");
+
+  if (!appView) return;
 
   appView.innerHTML = `
     <button
@@ -340,7 +396,6 @@ function renderMovieDetails(movie) {
     </button>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-
       <img
         src="${movie.posterUrl || ""}"
         class="w-full rounded-2xl shadow-xl h-[450px] object-cover"
@@ -348,7 +403,6 @@ function renderMovieDetails(movie) {
       >
 
       <div class="md:col-span-2 space-y-6">
-
         <h1 class="text-4xl font-black">
           ${escapeHTML(movie.title || "Movie")}
         </h1>
@@ -358,23 +412,19 @@ function renderMovieDetails(movie) {
         </p>
 
         <div class="border-t border-slate-800 pt-6">
-
           <h3 class="text-lg font-bold mb-4">
             Select Show Date & Time
           </h3>
 
           <div class="flex gap-4 mb-4">
-
             <button
               class="px-4 py-2 bg-rose-600 text-white rounded-lg font-medium"
             >
               Today
             </button>
-
           </div>
 
           <div class="flex gap-3 flex-wrap">
-
             <button
               id="show-10am"
               class="px-4 py-2 border border-slate-700 hover:border-rose-500 rounded-lg text-sm font-medium transition"
@@ -395,27 +445,20 @@ function renderMovieDetails(movie) {
             >
               07:00 PM
             </button>
-
           </div>
-
         </div>
-
       </div>
-
     </div>
   `;
 
-  document.getElementById("show-10am").onclick = () => {
+  document.getElementById("show-10am").onclick = () =>
     proceedToSeats(movie, "10:00 AM");
-  };
 
-  document.getElementById("show-230pm").onclick = () => {
+  document.getElementById("show-230pm").onclick = () =>
     proceedToSeats(movie, "02:30 PM");
-  };
 
-  document.getElementById("show-7pm").onclick = () => {
+  document.getElementById("show-7pm").onclick = () =>
     proceedToSeats(movie, "07:00 PM");
-  };
 }
 
 /* ============================================================
@@ -425,7 +468,6 @@ function renderMovieDetails(movie) {
 window.proceedToSeats = function (movie, timeSlot) {
   if (!currentUser) {
     openAuthModal("login");
-
     return;
   }
 
@@ -440,13 +482,17 @@ window.proceedToSeats = function (movie, timeSlot) {
    ============================================================ */
 
 function renderSeatSelection(data) {
-  if (!data || !data.movie) return router("home");
+  if (!data || !data.movie) {
+    router("home");
+    return;
+  }
 
   cleanupSeatListeners();
-
   selectedSeatIds.clear();
 
   const appView = document.getElementById("app-view");
+
+  if (!appView) return;
 
   appView.innerHTML = `
     <button
@@ -459,7 +505,6 @@ function renderSeatSelection(data) {
     <div
       class="max-w-3xl mx-auto bg-slate-900 border border-slate-800 p-6 rounded-2xl"
     >
-
       <h2 class="text-xl font-bold mb-1 text-center">
         ${escapeHTML(data.movie.title || "Select Your Seats")}
       </h2>
@@ -468,17 +513,10 @@ function renderSeatSelection(data) {
         Show Time: ${escapeHTML(data.timeSlot)}
       </p>
 
-      <!-- TIMER -->
-
-      <div
-        id="seat-lock-timer"
-        class="hidden text-center mb-6"
-      >
-
+      <div id="seat-lock-timer" class="hidden text-center mb-6">
         <div
           class="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-2 rounded-lg"
         >
-
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="w-4 h-4"
@@ -487,35 +525,18 @@ function renderSeatSelection(data) {
             stroke="currentColor"
             stroke-width="2"
           >
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-            ></circle>
-
-            <polyline
-              points="12 7 12 12 15 14"
-            ></polyline>
+            <circle cx="12" cy="12" r="9"></circle>
+            <polyline points="12 7 12 12 15 14"></polyline>
           </svg>
 
           <span>
             Seats held for
-            <strong id="seat-lock-countdown">
-              10:00
-            </strong>
+            <strong id="seat-lock-countdown">10:00</strong>
           </span>
-
         </div>
-
       </div>
 
-
-      <!-- SCREEN -->
-
-      <div
-        class="w-full max-w-xl mx-auto mb-10 text-center"
-      >
-
+      <div class="w-full max-w-xl mx-auto mb-10 text-center">
         <div
           class="h-2 bg-rose-500 rounded-full shadow-[0_0_25px_rgba(244,63,94,0.7)]"
         ></div>
@@ -525,24 +546,13 @@ function renderSeatSelection(data) {
         >
           Screen This Way
         </p>
-
       </div>
 
-
-      <!-- SEAT GRID -->
-
-      <div
-        id="seat-grid"
-        class="seat-grid"
-      ></div>
-
-
-      <!-- LEGEND -->
+      <div id="seat-grid" class="seat-grid"></div>
 
       <div
         class="flex justify-center gap-6 mb-6 text-xs text-slate-400 flex-wrap"
       >
-
         <div class="flex items-center gap-2">
           <div
             class="w-3 h-3 bg-slate-800 border border-slate-700 rounded"
@@ -551,16 +561,12 @@ function renderSeatSelection(data) {
         </div>
 
         <div class="flex items-center gap-2">
-          <div
-            class="w-3 h-3 bg-rose-600 rounded"
-          ></div>
+          <div class="w-3 h-3 bg-rose-600 rounded"></div>
           Selected
         </div>
 
         <div class="flex items-center gap-2">
-          <div
-            class="w-3 h-3 bg-amber-500 rounded"
-          ></div>
+          <div class="w-3 h-3 bg-amber-500 rounded"></div>
           Temporarily Locked
         </div>
 
@@ -570,33 +576,23 @@ function renderSeatSelection(data) {
           ></div>
           Occupied
         </div>
-
       </div>
-
-
-      <!-- BOOKING SUMMARY -->
 
       <div
         class="flex justify-between items-center border-t border-slate-800 pt-6 gap-4"
       >
-
         <div>
-
           <p class="text-sm text-slate-400">
             Selected Seats:
-
             <span
               id="selected-seats-count"
               class="text-white font-bold"
-            >
-              0
-            </span>
+            >0</span>
           </p>
 
           <p class="text-lg font-bold text-rose-500">
             ₹<span id="total-price">0</span>
           </p>
-
         </div>
 
         <button
@@ -606,9 +602,7 @@ function renderSeatSelection(data) {
         >
           Proceed to Payment
         </button>
-
       </div>
-
     </div>
   `;
 
@@ -616,11 +610,11 @@ function renderSeatSelection(data) {
     initiateRazorpayPayment(data.movie, data.timeSlot);
   };
 
-  /*
-   * Permanent booked seats listener
-   */
-
-  const seatDocRef = doc(db, "showSeats", `${data.movie.id}_${data.timeSlot}`);
+  const seatDocRef = doc(
+    db,
+    "showSeats",
+    `${data.movie.id}_${data.timeSlot}`,
+  );
 
   bookedSeatsUnsubscribe = onSnapshot(
     seatDocRef,
@@ -630,11 +624,6 @@ function renderSeatSelection(data) {
       if (docSnap.exists()) {
         bookedSeats = docSnap.data().bookedSeats || [];
       } else {
-        /*
-         * Create showSeats document if it
-         * doesn't exist.
-         */
-
         try {
           await setDoc(
             seatDocRef,
@@ -646,22 +635,31 @@ function renderSeatSelection(data) {
             },
           );
         } catch (error) {
-          console.error("Unable to initialize show seats:", error);
+          console.error(
+            "Unable to initialize show seats:",
+            error,
+          );
         }
       }
 
-      renderSeatButtons(data, bookedSeats, getCurrentLockedSeats());
+      renderSeatButtons(
+        data,
+        bookedSeats,
+        getCurrentLockedSeats(),
+      );
     },
     (error) => {
-      console.error("Booked seats listener error:", error);
+      console.error(
+        "Booked seats listener error:",
+        error,
+      );
 
-      showCustomPopup("Unable to load seat availability.", "error");
+      showCustomPopup(
+        "Unable to load seat availability.",
+        "error",
+      );
     },
   );
-
-  /*
-   * Temporary lock listener
-   */
 
   const locksQuery = query(
     collection(db, "seatLocks"),
@@ -673,19 +671,17 @@ function renderSeatSelection(data) {
     locksQuery,
     (snapshot) => {
       const now = Date.now();
-
       const locks = {};
 
       snapshot.forEach((docSnap) => {
         const lock = docSnap.data();
+        const expiresAt =
+          lock.expiresAt?.toMillis?.() || 0;
 
-        const expiresAt = lock.expiresAt?.toMillis?.() || 0;
-
-        /*
-         * Only consider active locks.
-         */
-
-        if (lock.status === "locked" && expiresAt > now) {
+        if (
+          lock.status === "locked" &&
+          expiresAt > now
+        ) {
           locks[lock.seatId] = {
             ...lock,
             expiresAt,
@@ -695,22 +691,35 @@ function renderSeatSelection(data) {
 
       currentViewData.activeLocks = locks;
 
-      renderSeatButtons(data, currentViewData.bookedSeats || [], locks);
+      renderSeatButtons(
+        data,
+        currentViewData.bookedSeats || [],
+        locks,
+      );
 
-      updateSeatLockTimer(data.movie.id, data.timeSlot, locks);
+      updateSeatLockTimer(
+        data.movie.id,
+        data.timeSlot,
+        locks,
+      );
     },
     (error) => {
-      console.error("Seat lock listener error:", error);
+      console.error(
+        "Seat lock listener error:",
+        error,
+      );
 
-      showCustomPopup("Unable to monitor seat locks.", "error");
+      showCustomPopup(
+        "Unable to monitor seat locks.",
+        "error",
+      );
     },
   );
 
-  /*
-   * Start timer
-   */
-
-  startSeatLockTimer(data.movie.id, data.timeSlot);
+  startSeatLockTimer(
+    data.movie.id,
+    data.timeSlot,
+  );
 }
 
 /* ============================================================
@@ -718,32 +727,30 @@ function renderSeatSelection(data) {
    ============================================================ */
 
 function getCurrentLockedSeats() {
-  if (currentViewData && currentViewData.activeLocks) {
+  if (
+    currentViewData &&
+    currentViewData.activeLocks
+  ) {
     return currentViewData.activeLocks;
   }
 
   return {};
 }
-
 /* ============================================================
    RENDER SEAT BUTTONS
    ============================================================ */
 
-function renderSeatButtons(data, bookedSeats = [], locks = {}) {
-  /*
-   * Save booked seats so the lock listener can
-   * use them too.
-   */
-
+function renderSeatButtons(
+  data,
+  bookedSeats = [],
+  locks = {},
+) {
   currentViewData.bookedSeats = bookedSeats;
 
-  const seatGrid = document.getElementById("seat-grid");
+  const seatGrid =
+    document.getElementById("seat-grid");
 
   if (!seatGrid) return;
-
-  /*
-   * Don't rebuild if we have navigated away.
-   */
 
   if (
     currentViewData?.movie?.id &&
@@ -752,66 +759,99 @@ function renderSeatButtons(data, bookedSeats = [], locks = {}) {
     return;
   }
 
+  /*
+   * IMPORTANT:
+   * Remove stale selections.
+   * A selected seat must have an active lock owned
+   * by the current user.
+   */
+  for (
+    const seatId of Array.from(selectedSeatIds)
+  ) {
+    const lock = locks[seatId];
+
+    const isOwnActiveLock =
+      lock &&
+      currentUser &&
+      lock.userId === currentUser.uid &&
+      lock.status === "locked" &&
+      Number(lock.expiresAt) > Date.now();
+
+    /*
+     * If seat became booked OR the user's lock disappeared,
+     * remove it from local selection.
+     */
+    if (
+      !isOwnActiveLock ||
+      bookedSeats.includes(seatId)
+    ) {
+      selectedSeatIds.delete(seatId);
+    }
+  }
+
   seatGrid.innerHTML = "";
 
-  const rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
+  const rows = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+  ];
 
   rows.forEach((row) => {
     for (let i = 1; i <= 10; i++) {
       const seatId = `${row}${i}`;
 
-      const isBooked = bookedSeats.includes(seatId);
+      const isBooked =
+        bookedSeats.includes(seatId);
 
       const lock = locks[seatId];
 
       const isLocked = !!lock;
 
       const isOwnLock =
-        isLocked && currentUser && lock.userId === currentUser.uid;
+        isLocked &&
+        currentUser &&
+        lock.userId === currentUser.uid;
 
-      const isSelected = selectedSeatIds.has(seatId);
+      const isSelected =
+        selectedSeatIds.has(seatId);
 
-      const seatBtn = document.createElement("button");
+      const seatBtn =
+        document.createElement("button");
 
       seatBtn.type = "button";
-
       seatBtn.innerText = seatId;
-
-      /*
-       * PERMANENTLY BOOKED
-       */
 
       if (isBooked) {
         seatBtn.className =
           "seat-btn p-3 rounded-lg text-xs font-bold bg-slate-900 border border-slate-800 text-slate-600 cursor-not-allowed opacity-50";
 
         seatBtn.disabled = true;
-      } else if (isLocked && !isOwnLock) {
-
-      /*
-       * TEMPORARILY LOCKED BY ANOTHER USER
-       */
+      } else if (
+        isLocked &&
+        !isOwnLock
+      ) {
         seatBtn.className =
           "seat-btn p-3 rounded-lg text-xs font-bold bg-amber-500 border border-amber-400 text-white cursor-not-allowed opacity-90";
 
         seatBtn.disabled = true;
 
-        seatBtn.title = "This seat is temporarily locked by another user.";
-      } else if (isOwnLock && isSelected) {
-
-      /*
-       * CURRENT USER'S SELECTED SEAT
-       */
+        seatBtn.title =
+          "This seat is temporarily locked by another user.";
+      } else if (
+        isOwnLock &&
+        isSelected
+      ) {
         seatBtn.className =
           "seat-btn selected-seat p-3 rounded-lg text-xs font-bold bg-rose-600 text-white";
 
         seatBtn.disabled = false;
       } else if (isOwnLock) {
-
-      /*
-       * CURRENT USER HAS LOCK BUT LOCAL
-       * STATE WAS LOST
-       */
         selectedSeatIds.add(seatId);
 
         seatBtn.className =
@@ -819,26 +859,19 @@ function renderSeatButtons(data, bookedSeats = [], locks = {}) {
 
         seatBtn.disabled = false;
       } else {
-
-      /*
-       * NORMAL AVAILABLE SEAT
-       */
         seatBtn.className =
           "seat-btn p-3 rounded-lg text-xs font-bold bg-slate-800 hover:bg-rose-600/30 border border-slate-700 text-slate-300 transition";
 
         seatBtn.disabled = false;
       }
 
-      /*
-       * Seat click
-       */
-
       seatBtn.onclick = async () => {
-        if (isBooked) {
-          return;
-        }
+        if (isBooked) return;
 
-        if (isLocked && !isOwnLock) {
+        if (
+          isLocked &&
+          !isOwnLock
+        ) {
           showCustomPopup(
             `Seat ${seatId} is currently locked by another user.`,
             "error",
@@ -848,60 +881,131 @@ function renderSeatButtons(data, bookedSeats = [], locks = {}) {
         }
 
         /*
-         * UNSELECT
+         * USER IS DESELECTING THE SEAT
          */
-
-        if (selectedSeatIds.has(seatId)) {
+        if (
+          selectedSeatIds.has(seatId)
+        ) {
           try {
-            await unlockSeat(data.movie.id, data.timeSlot, seatId);
+            await unlockSeat(
+              data.movie.id,
+              data.timeSlot,
+              seatId,
+            );
 
-            selectedSeatIds.delete(seatId);
+            selectedSeatIds.delete(
+              seatId,
+            );
 
             updateBookingSummary();
 
-            renderSeatButtons(data, bookedSeats, getCurrentLockedSeats());
-          } catch (error) {
-            console.error("Unlock error:", error);
-
-            showCustomPopup(
-              error.message || "Unable to release this seat.",
-              "error",
+            renderSeatButtons(
+              data,
+              bookedSeats,
+              getCurrentLockedSeats(),
             );
+          } catch (error) {
+            console.error(
+              `Unlock error for ${seatId}:`,
+              error,
+            );
+
+            /*
+             * If the lock already disappeared,
+             * simply remove it locally.
+             */
+            selectedSeatIds.delete(
+              seatId,
+            );
+
+            updateBookingSummary();
+
+            renderSeatButtons(
+              data,
+              bookedSeats,
+              getCurrentLockedSeats(),
+            );
+
+            const message =
+              getErrorMessage(
+                error,
+                "",
+              );
+
+            /*
+             * Don't show an unnecessary popup
+             * for an already-expired lock.
+             */
+            if (
+              message &&
+              !message
+                .toLowerCase()
+                .includes(
+                  "no longer exists",
+                )
+            ) {
+              showCustomPopup(
+                message,
+                "error",
+              );
+            }
           }
 
           return;
         }
 
         /*
-         * SELECT / LOCK
+         * USER IS SELECTING THE SEAT
          */
-
         try {
-          /*
-           * Immediately disable this
-           * button to prevent double-clicks.
-           */
-
           seatBtn.disabled = true;
 
-          await lockSeat(data.movie.id, data.timeSlot, seatId);
+          await lockSeat(
+            data.movie.id,
+            data.timeSlot,
+            seatId,
+          );
 
-          selectedSeatIds.add(seatId);
+          selectedSeatIds.add(
+            seatId,
+          );
 
           updateBookingSummary();
+
+          renderSeatButtons(
+            data,
+            bookedSeats,
+            getCurrentLockedSeats(),
+          );
         } catch (error) {
-          console.error("Seat lock error:", error);
+          console.error(
+            `Seat lock error for ${seatId}:`,
+            error,
+          );
 
           showCustomPopup(
-            error.message || `Unable to lock seat ${seatId}.`,
+            getErrorMessage(
+              error,
+              `Unable to lock seat ${seatId}.`,
+            ),
             "error",
           );
 
-          renderSeatButtons(data, bookedSeats, getCurrentLockedSeats());
+          renderSeatButtons(
+            data,
+            bookedSeats,
+            getCurrentLockedSeats(),
+          );
         }
       };
 
-      seatGrid.appendChild(seatBtn);
+      /*
+       * VERY IMPORTANT:
+       * This must remain INSIDE the for loop.
+       */
+      seatGrid.appendChild(
+        seatBtn,
+      );
     }
   });
 
@@ -912,104 +1016,142 @@ function renderSeatButtons(data, bookedSeats = [], locks = {}) {
    LOCK A SEAT
    ============================================================ */
 
-async function lockSeat(movieId, timeSlot, seatId) {
+async function lockSeat(
+  movieId,
+  timeSlot,
+  seatId,
+) {
   if (!currentUser) {
-    throw new Error("Please login to select seats.");
+    throw new Error(
+      "Please login to select seats.",
+    );
   }
 
-  const lockId = createLockId(movieId, timeSlot, seatId);
+  const lockId =
+    createLockId(
+      movieId,
+      timeSlot,
+      seatId,
+    );
 
-  const lockRef = doc(db, "seatLocks", lockId);
+  const lockRef =
+    doc(
+      db,
+      "seatLocks",
+      lockId,
+    );
 
-  const showSeatRef = doc(db, "showSeats", `${movieId}_${timeSlot}`);
+  const showSeatRef =
+    doc(
+      db,
+      "showSeats",
+      `${movieId}_${timeSlot}`,
+    );
 
-  await runTransaction(db, async (transaction) => {
-    /*
-     * IMPORTANT:
-     * Every transaction read is done
-     * BEFORE any write.
-     */
+  await runTransaction(
+    db,
+    async (transaction) => {
+      const lockSnap =
+        await transaction.get(
+          lockRef,
+        );
 
-    const lockSnap = await transaction.get(lockRef);
+      const showSeatSnap =
+        await transaction.get(
+          showSeatRef,
+        );
 
-    const showSeatSnap = await transaction.get(showSeatRef);
-
-    /*
-     * Check permanent booking.
-     */
-
-    const bookedSeats = showSeatSnap.exists()
-      ? showSeatSnap.data().bookedSeats || []
-      : [];
-
-    if (bookedSeats.includes(seatId)) {
-      throw new Error(`Seat ${seatId} is already booked.`);
-    }
-
-    /*
-     * Check existing temporary lock.
-     */
-
-    if (lockSnap.exists()) {
-      const existingLock = lockSnap.data();
-
-      const expiresAt = existingLock.expiresAt?.toMillis?.() || 0;
-
-      /*
-       * Active lock owned by another
-       * user.
-       */
+      const bookedSeats =
+        showSeatSnap.exists()
+          ? showSeatSnap.data()
+              .bookedSeats || []
+          : [];
 
       if (
-        existingLock.status === "locked" &&
-        expiresAt > Date.now() &&
-        existingLock.userId !== currentUser.uid
+        bookedSeats.includes(
+          seatId,
+        )
       ) {
-        throw new Error(`Seat ${seatId} is currently locked by another user.`);
+        throw new Error(
+          `Seat ${seatId} is already booked.`,
+        );
       }
 
-      /*
-       * Active lock owned by current
-       * user.
-       */
+      if (lockSnap.exists()) {
+        const existingLock =
+          lockSnap.data();
 
-      if (
-        existingLock.status === "locked" &&
-        expiresAt > Date.now() &&
-        existingLock.userId === currentUser.uid
-      ) {
+        const expiresAt =
+          existingLock
+            .expiresAt
+            ?.toMillis?.() || 0;
+
         /*
-         * Don't reset the timer.
+         * Another user has a valid lock.
          */
+        if (
+          existingLock.status ===
+            "locked" &&
+          expiresAt > Date.now() &&
+          existingLock.userId !==
+            currentUser.uid
+        ) {
+          throw new Error(
+            `Seat ${seatId} is currently locked by another user.`,
+          );
+        }
 
-        return;
+        /*
+         * Current user already owns
+         * an active lock.
+         */
+        if (
+          existingLock.status ===
+            "locked" &&
+          expiresAt > Date.now() &&
+          existingLock.userId ===
+            currentUser.uid
+        ) {
+          return;
+        }
       }
-    }
 
-    /*
-     * Create a fresh 10-minute lock.
-     */
+      const expiresAt =
+        Timestamp.fromMillis(
+          Date.now() +
+            SEAT_LOCK_DURATION,
+        );
 
-    const expiresAt = Timestamp.fromMillis(Date.now() + SEAT_LOCK_DURATION);
+      transaction.set(
+        lockRef,
+        {
+          userId:
+            currentUser.uid,
 
-    transaction.set(lockRef, {
-      userId: currentUser.uid,
+          userEmail:
+            currentUser.email || "",
 
-      userEmail: currentUser.email || "",
+          movieId:
+            movieId,
 
-      movieId: movieId,
+          timeSlot:
+            timeSlot,
 
-      timeSlot: timeSlot,
+          seatId:
+            seatId,
 
-      seatId: seatId,
+          status:
+            "locked",
 
-      status: "locked",
+          expiresAt:
+            expiresAt,
 
-      expiresAt: expiresAt,
-
-      createdAt: Timestamp.now(),
-    });
-  });
+          createdAt:
+            Timestamp.now(),
+        },
+      );
+    },
+  );
 
   return true;
 }
@@ -1018,43 +1160,89 @@ async function lockSeat(movieId, timeSlot, seatId) {
    UNLOCK A SEAT
    ============================================================ */
 
-async function unlockSeat(movieId, timeSlot, seatId) {
+async function unlockSeat(
+  movieId,
+  timeSlot,
+  seatId,
+) {
   if (!currentUser) {
-    return;
+    throw new Error(
+      "Please login to release this seat.",
+    );
   }
 
-  const lockId = createLockId(movieId, timeSlot, seatId);
+  const lockId =
+    createLockId(
+      movieId,
+      timeSlot,
+      seatId,
+    );
 
-  const lockRef = doc(db, "seatLocks", lockId);
+  const lockRef =
+    doc(
+      db,
+      "seatLocks",
+      lockId,
+    );
 
-  await runTransaction(db, async (transaction) => {
-    const lockSnap = await transaction.get(lockRef);
+  await runTransaction(
+    db,
+    async (transaction) => {
+      const lockSnap =
+        await transaction.get(
+          lockRef,
+        );
 
-    if (!lockSnap.exists()) {
-      return;
-    }
+      /*
+       * If the lock has already expired
+       * or disappeared, there is nothing
+       * to delete.
+       *
+       * Treat this as successful.
+       */
+      if (!lockSnap.exists()) {
+        return;
+      }
 
-    const lockData = lockSnap.data();
+      const lockData =
+        lockSnap.data();
 
-    /*
-     * Only owner can release the
-     * temporary lock.
-     */
+      if (
+        lockData.userId !==
+        currentUser.uid
+      ) {
+        throw new Error(
+          "You cannot release another user's seat lock.",
+        );
+      }
 
-    if (lockData.userId !== currentUser.uid) {
-      throw new Error("You cannot release another user's seat lock.");
-    }
+      transaction.delete(
+        lockRef,
+      );
+    },
+  );
 
-    transaction.delete(lockRef);
-  });
+  selectedSeatIds.delete(
+    seatId,
+  );
+
+  updateBookingSummary();
 }
 
 /* ============================================================
    CREATE LOCK DOCUMENT ID
    ============================================================ */
 
-function createLockId(movieId, timeSlot, seatId) {
-  return `${movieId}_${timeSlot}_${seatId}`.replace(/[^a-zA-Z0-9_-]/g, "");
+function createLockId(
+  movieId,
+  timeSlot,
+  seatId,
+) {
+  return `${movieId}_${timeSlot}_${seatId}`
+    .replace(
+      /[^a-zA-Z0-9_-]/g,
+      "",
+    );
 }
 
 /* ============================================================
@@ -1062,24 +1250,37 @@ function createLockId(movieId, timeSlot, seatId) {
    ============================================================ */
 
 function updateBookingSummary() {
-  const countEl = document.getElementById("selected-seats-count");
+  const countEl =
+    document.getElementById(
+      "selected-seats-count",
+    );
 
-  const priceEl = document.getElementById("total-price");
+  const priceEl =
+    document.getElementById(
+      "total-price",
+    );
 
-  const paymentBtn = document.getElementById("proceed-payment-btn");
+  const paymentBtn =
+    document.getElementById(
+      "proceed-payment-btn",
+    );
 
-  const count = selectedSeatIds.size;
+  const count =
+    selectedSeatIds.size;
 
   if (countEl) {
-    countEl.innerText = count;
+    countEl.innerText =
+      count;
   }
 
   if (priceEl) {
-    priceEl.innerText = count * SEAT_PRICE;
+    priceEl.innerText =
+      count * SEAT_PRICE;
   }
 
   if (paymentBtn) {
-    paymentBtn.disabled = count === 0;
+    paymentBtn.disabled =
+      count === 0;
   }
 }
 
@@ -1087,35 +1288,67 @@ function updateBookingSummary() {
    START SEAT LOCK TIMER
    ============================================================ */
 
-function startSeatLockTimer(movieId, timeSlot) {
+function startSeatLockTimer(
+  movieId,
+  timeSlot,
+) {
   if (seatLockTimer) {
-    clearInterval(seatLockTimer);
+    clearInterval(
+      seatLockTimer,
+    );
   }
 
-  seatLockTimer = setInterval(() => {
-    const locks = currentViewData.activeLocks || {};
+  seatLockTimer =
+    setInterval(() => {
+      const locks =
+        currentViewData
+          .activeLocks || {};
 
-    updateSeatLockTimer(movieId, timeSlot, locks);
-  }, 1000);
+      updateSeatLockTimer(
+        movieId,
+        timeSlot,
+        locks,
+      );
+    }, 1000);
 }
 
 /* ============================================================
    UPDATE TIMER
    ============================================================ */
 
-function updateSeatLockTimer(movieId, timeSlot, locks) {
-  const timerContainer = document.getElementById("seat-lock-timer");
+function updateSeatLockTimer(
+  movieId,
+  timeSlot,
+  locks,
+) {
+  const timerContainer =
+    document.getElementById(
+      "seat-lock-timer",
+    );
 
-  const countdown = document.getElementById("seat-lock-countdown");
+  const countdown =
+    document.getElementById(
+      "seat-lock-countdown",
+    );
 
-  if (!timerContainer || !countdown || !currentUser) {
+  if (
+    !timerContainer ||
+    !countdown ||
+    !currentUser
+  ) {
     return;
   }
 
-  let earliestExpiry = null;
+  let earliestExpiry =
+    null;
 
-  Object.values(locks || {}).forEach((lock) => {
-    if (lock.userId !== currentUser.uid) {
+  Object.values(
+    locks || {},
+  ).forEach((lock) => {
+    if (
+      lock.userId !==
+      currentUser.uid
+    ) {
       return;
     }
 
@@ -1123,40 +1356,60 @@ function updateSeatLockTimer(movieId, timeSlot, locks) {
       return;
     }
 
-    if (!earliestExpiry || lock.expiresAt < earliestExpiry) {
-      earliestExpiry = lock.expiresAt;
+    if (
+      !earliestExpiry ||
+      lock.expiresAt <
+        earliestExpiry
+    ) {
+      earliestExpiry =
+        lock.expiresAt;
     }
   });
 
-  /*
-   * No active locks owned by current
-   * user.
-   */
-
   if (!earliestExpiry) {
-    timerContainer.classList.add("hidden");
+    timerContainer.classList.add(
+      "hidden",
+    );
 
     return;
   }
 
-  const remaining = Math.max(0, earliestExpiry - Date.now());
+  const remaining =
+    Math.max(
+      0,
+      earliestExpiry -
+        Date.now(),
+    );
 
-  const minutes = Math.floor(remaining / 60000);
+  const minutes =
+    Math.floor(
+      remaining / 60000,
+    );
 
-  const seconds = Math.floor((remaining % 60000) / 1000);
+  const seconds =
+    Math.floor(
+      (remaining % 60000) /
+        1000,
+    );
 
-  timerContainer.classList.remove("hidden");
+  timerContainer.classList.remove(
+    "hidden",
+  );
 
-  countdown.innerText = `${String(minutes).padStart(2, "0")}:${String(
-    seconds,
-  ).padStart(2, "0")}`;
-
-  /*
-   * Lock expired.
-   */
+  countdown.innerText =
+    `${String(minutes).padStart(
+      2,
+      "0",
+    )}:${String(seconds).padStart(
+      2,
+      "0",
+    )}`;
 
   if (remaining <= 0) {
-    releaseExpiredUserLocks(movieId, timeSlot);
+    releaseExpiredUserLocks(
+      movieId,
+      timeSlot,
+    );
   }
 }
 
@@ -1164,38 +1417,77 @@ function updateSeatLockTimer(movieId, timeSlot, locks) {
    RELEASE EXPIRED LOCKS
    ============================================================ */
 
-async function releaseExpiredUserLocks(movieId, timeSlot) {
+async function releaseExpiredUserLocks(
+  movieId,
+  timeSlot,
+) {
   if (!currentUser) {
     return;
   }
 
-  const lockQuery = query(
-    collection(db, "seatLocks"),
-    where("movieId", "==", movieId),
-    where("timeSlot", "==", timeSlot),
-    where("userId", "==", currentUser.uid),
-  );
+  const lockQuery =
+    query(
+      collection(
+        db,
+        "seatLocks",
+      ),
+      where(
+        "movieId",
+        "==",
+        movieId,
+      ),
+      where(
+        "timeSlot",
+        "==",
+        timeSlot,
+      ),
+      where(
+        "userId",
+        "==",
+        currentUser.uid,
+      ),
+    );
 
   try {
-    const snapshot = await getDocs(lockQuery);
+    const snapshot =
+      await getDocs(
+        lockQuery,
+      );
 
-    const now = Date.now();
+    const now =
+      Date.now();
 
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
+    for (
+      const docSnap of
+        snapshot.docs
+    ) {
+      const data =
+        docSnap.data();
 
-      const expiresAt = data.expiresAt?.toMillis?.() || 0;
+      const expiresAt =
+        data.expiresAt
+          ?.toMillis?.() ||
+        0;
 
-      if (expiresAt <= now) {
-        await deleteDoc(docSnap.ref);
+      if (
+        expiresAt <= now
+      ) {
+        await deleteDoc(
+          docSnap.ref,
+        );
 
-        selectedSeatIds.delete(data.seatId);
+        selectedSeatIds.delete(
+          data.seatId,
+        );
       }
     }
 
     updateBookingSummary();
   } catch (error) {
-    console.error("Expired lock cleanup error:", error);
+    console.error(
+      "Expired lock cleanup error:",
+      error,
+    );
   }
 }
 
@@ -1204,26 +1496,35 @@ async function releaseExpiredUserLocks(movieId, timeSlot) {
    ============================================================ */
 
 function cleanupSeatListeners() {
-  if (seatLocksUnsubscribe) {
+  if (
+    seatLocksUnsubscribe
+  ) {
     seatLocksUnsubscribe();
 
-    seatLocksUnsubscribe = null;
+    seatLocksUnsubscribe =
+      null;
   }
 
-  if (bookedSeatsUnsubscribe) {
+  if (
+    bookedSeatsUnsubscribe
+  ) {
     bookedSeatsUnsubscribe();
 
-    bookedSeatsUnsubscribe = null;
+    bookedSeatsUnsubscribe =
+      null;
   }
 
   if (seatLockTimer) {
-    clearInterval(seatLockTimer);
+    clearInterval(
+      seatLockTimer,
+    );
 
     seatLockTimer = null;
   }
 
   if (currentViewData) {
-    currentViewData.activeLocks = {};
+    currentViewData.activeLocks =
+      {};
   }
 }
 
@@ -1231,222 +1532,474 @@ function cleanupSeatListeners() {
    VERIFY USER SEAT LOCKS
    ============================================================ */
 
-async function verifyUserSeatLocks(movieId, timeSlot, seatIds) {
-  const now = Date.now();
+async function verifyUserSeatLocks(
+  movieId,
+  timeSlot,
+  seatIds,
+) {
+  if (!currentUser) {
+    throw new Error(
+      "Please login before payment.",
+    );
+  }
 
-  for (const seatId of seatIds) {
-    const lockId = createLockId(movieId, timeSlot, seatId);
+  const now =
+    Date.now();
 
-    const lockRef = doc(db, "seatLocks", lockId);
+  for (
+    const seatId of seatIds
+  ) {
+    const lockId =
+      createLockId(
+        movieId,
+        timeSlot,
+        seatId,
+      );
 
-    const lockSnap = await getDoc(lockRef);
+    const lockRef =
+      doc(
+        db,
+        "seatLocks",
+        lockId,
+      );
 
-    if (!lockSnap.exists()) {
-      throw new Error(`Your lock for seat ${seatId} no longer exists.`);
+    const lockSnap =
+      await getDoc(
+        lockRef,
+      );
+
+    if (
+      !lockSnap.exists()
+    ) {
+      throw new Error(
+        `Your lock for seat ${seatId} no longer exists.`,
+      );
     }
 
-    const lock = lockSnap.data();
+    const lock =
+      lockSnap.data();
 
-    const expiresAt = lock.expiresAt?.toMillis?.() || 0;
+    const expiresAt =
+      lock.expiresAt
+        ?.toMillis?.() ||
+      0;
 
-    if (lock.userId !== currentUser.uid) {
-      throw new Error(`You do not own seat ${seatId}.`);
+    if (
+      lock.userId !==
+      currentUser.uid
+    ) {
+      throw new Error(
+        `You do not own seat ${seatId}.`,
+      );
     }
 
-    if (lock.status !== "locked") {
-      throw new Error(`Seat ${seatId} is no longer locked.`);
+    if (
+      lock.status !==
+      "locked"
+    ) {
+      throw new Error(
+        `Seat ${seatId} is no longer locked.`,
+      );
     }
 
-    if (expiresAt <= now) {
-      throw new Error(`Your 10-minute lock for seat ${seatId} has expired.`);
+    if (
+      expiresAt <= now
+    ) {
+      throw new Error(
+        `Your 10-minute lock for seat ${seatId} has expired.`,
+      );
     }
   }
 }
 
 /* ============================================================
-   RAZORPAY PAYMENT (backend-verified order + signature)
+   RAZORPAY PAYMENT
    ============================================================ */
 
-window.initiateRazorpayPayment = async function (movie, timeSlot) {
-  if (!currentUser) {
-    openAuthModal("login");
+window.initiateRazorpayPayment =
+  async function (
+    movie,
+    timeSlot,
+  ) {
+    if (!currentUser) {
+      openAuthModal(
+        "login",
+      );
 
-    return;
-  }
-
-  const seatIds = Array.from(selectedSeatIds);
-
-  if (seatIds.length === 0) {
-    showCustomPopup("Please select at least one seat.", "error");
-
-    return;
-  }
-
-  /*
-   * Before creating the order, verify that every
-   * selected seat still belongs to this user.
-   */
-
-  try {
-    await verifyUserSeatLocks(movie.id, timeSlot, seatIds);
-  } catch (error) {
-    console.error("Seat lock verification failed:", error);
-
-    showCustomPopup(
-      error.message || "One or more selected seats are no longer available.",
-      "error",
-    );
-
-    return;
-  }
-
-  /*
-   * Ask the backend to create the Razorpay order.
-   * The backend is the source of truth for pricing
-   * and seat availability at order-creation time.
-   */
-
-  let order;
-
-  try {
-    const token = await currentUser.getIdToken();
-
-    const response = await fetch(`${API_BASE_URL}/api/orders`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        movie_id: movie.id,
-        time_slot: timeSlot,
-        seats: seatIds,
-      }),
-    });
-
-    if (!response.ok) {
-      const errRes = await response.json().catch(() => ({}));
-
-      throw new Error(errRes.detail || "Unable to start payment.");
+      return;
     }
 
-    order = await response.json();
-  } catch (err) {
-    console.error("Order creation failed:", err);
+    const seatIds =
+      Array.from(
+        selectedSeatIds,
+      );
 
-    showCustomPopup(
-      err.message || "Unable to start payment. Please try again.",
-      "error",
-    );
+    if (
+      seatIds.length === 0
+    ) {
+      showCustomPopup(
+        "Please select at least one seat.",
+        "error",
+      );
 
-    return;
-  }
+      return;
+    }
 
-  const options = {
-    key: order.keyId,
-    order_id: order.orderId,
-    amount: order.amount,
-    currency: order.currency,
-    name: "MovieNest",
-    description: `Booking for ${movie.title}`,
+    try {
+      await verifyUserSeatLocks(
+        movie.id,
+        timeSlot,
+        seatIds,
+      );
+    } catch (error) {
+      console.error(
+        "Seat lock verification failed:",
+        error,
+      );
 
-    handler: async function (paymentRes) {
-      await completeBookingAfterPayment(movie, timeSlot, seatIds, paymentRes);
-    },
+      showCustomPopup(
+        getErrorMessage(
+          error,
+          "One or more selected seats are no longer available.",
+        ),
+        "error",
+      );
 
-    prefill: {
-      email: currentUser.email,
-    },
+      /*
+       * Remove stale selections immediately.
+       */
+      for (
+        const seatId of seatIds
+      ) {
+        const lock =
+          currentViewData
+            .activeLocks?.[
+            seatId
+          ];
 
-    theme: {
-      color: "#e11d48",
-    },
+        const isValid =
+          lock &&
+          lock.userId ===
+            currentUser.uid &&
+          lock.status ===
+            "locked" &&
+          Number(
+            lock.expiresAt,
+          ) > Date.now();
 
-    modal: {
-      ondismiss: function () {
-        showCustomPopup(
-          "Payment cancelled. Your seats remain locked until the 10-minute timer expires.",
-          "info",
+        if (!isValid) {
+          selectedSeatIds.delete(
+            seatId,
+          );
+        }
+      }
+
+      updateBookingSummary();
+
+      return;
+    }
+
+    let order;
+
+    try {
+      const token =
+        await currentUser.getIdToken();
+
+      const response =
+        await fetch(
+          `${API_BASE_URL}/api/orders`,
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+
+            body: JSON.stringify({
+              movie_id:
+                movie.id,
+
+              time_slot:
+                timeSlot,
+
+              seats:
+                seatIds,
+            }),
+          },
         );
+
+      if (!response.ok) {
+        const errRes =
+          await response
+            .json()
+            .catch(
+              () => ({}),
+            );
+
+        throw new Error(
+          getErrorMessage(
+            errRes,
+            "Unable to start payment.",
+          ),
+        );
+      }
+
+      order =
+        await response.json();
+    } catch (err) {
+      console.error(
+        "Order creation failed:",
+        err,
+      );
+
+      showCustomPopup(
+        getErrorMessage(
+          err,
+          "Unable to start payment. Please try again.",
+        ),
+        "error",
+      );
+
+      return;
+    }
+
+    if (
+      !order ||
+      !order.orderId ||
+      !order.keyId ||
+      !order.amount
+    ) {
+      console.error(
+        "Invalid Razorpay order response:",
+        order,
+      );
+
+      showCustomPopup(
+        "Invalid payment order received from server.",
+        "error",
+      );
+
+      return;
+    }
+
+    const options = {
+      key:
+        order.keyId,
+
+      order_id:
+        order.orderId,
+
+      amount:
+        order.amount,
+
+      currency:
+        order.currency ||
+        "INR",
+
+      name:
+        "MovieNest",
+
+      description:
+        `Booking for ${movie.title}`,
+
+      handler:
+        async function (
+          paymentRes,
+        ) {
+          await completeBookingAfterPayment(
+            movie,
+            timeSlot,
+            seatIds,
+            paymentRes,
+          );
+        },
+
+      prefill: {
+        email:
+          currentUser.email ||
+          "",
       },
-    },
+
+      theme: {
+        color:
+          "#e11d48",
+      },
+
+      modal: {
+        ondismiss:
+          function () {
+            showCustomPopup(
+              "Payment cancelled. Your seats remain locked until the 10-minute timer expires.",
+              "info",
+            );
+          },
+      },
+    };
+
+    try {
+      if (
+        typeof window.Razorpay !==
+        "function"
+      ) {
+        throw new Error(
+          "Razorpay payment gateway is not loaded. Please refresh the page.",
+        );
+      }
+
+      const rzp =
+        new window.Razorpay(
+          options,
+        );
+
+      rzp.open();
+    } catch (error) {
+      console.error(
+        "Razorpay error:",
+        error,
+      );
+
+      showCustomPopup(
+        getErrorMessage(
+          error,
+          "Unable to open payment gateway.",
+        ),
+        "error",
+      );
+    }
   };
-
-  try {
-    const rzp = new window.Razorpay(options);
-
-    rzp.open();
-  } catch (error) {
-    console.error("Razorpay error:", error);
-
-    showCustomPopup("Unable to open payment gateway.", "error");
-  }
-};
 
 /* ============================================================
    COMPLETE BOOKING AFTER PAYMENT
-   (verified server-side via /api/bookings)
    ============================================================ */
 
-async function completeBookingAfterPayment(movie, timeSlot, seatIds, paymentRes) {
+async function completeBookingAfterPayment(
+  movie,
+  timeSlot,
+  seatIds,
+  paymentRes,
+) {
   if (!currentUser) {
-    showCustomPopup("Your login session has expired.", "error");
+    showCustomPopup(
+      "Your login session has expired.",
+      "error",
+    );
 
     return;
   }
 
   try {
-    const token = await currentUser.getIdToken();
+    const token =
+      await currentUser.getIdToken();
 
-    const confirmRes = await fetch(`${API_BASE_URL}/api/bookings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        movie_id: movie.id,
-        time_slot: timeSlot,
-        seats: seatIds,
-        order_id: paymentRes.razorpay_order_id,
-        payment_id: paymentRes.razorpay_payment_id,
-        signature: paymentRes.razorpay_signature,
-      }),
-    });
+    const confirmRes =
+      await fetch(
+        `${API_BASE_URL}/api/bookings`,
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Authorization:
+              `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            movie_id:
+              movie.id,
+
+            time_slot:
+              timeSlot,
+
+            seats:
+              seatIds,
+
+            order_id:
+              paymentRes.razorpay_order_id,
+
+            payment_id:
+              paymentRes.razorpay_payment_id,
+
+            signature:
+              paymentRes.razorpay_signature,
+          }),
+        },
+      );
 
     if (!confirmRes.ok) {
-      const errData = await confirmRes.json().catch(() => ({}));
+      const errData =
+        await confirmRes
+          .json()
+          .catch(
+            () => ({}),
+          );
 
-      throw new Error(errData.detail || "Payment verification failed.");
+      throw new Error(
+        getErrorMessage(
+          errData,
+          "Payment verification failed.",
+        ),
+      );
     }
 
-    const confirmation = await confirmRes.json();
+    const confirmation =
+      await confirmRes.json();
 
-    /*
-     * The booking is now permanent server-side.
-     * Release the temporary client-side seat locks.
-     */
-
-    for (const seatId of seatIds) {
+    for (
+      const seatId of seatIds
+    ) {
       try {
-        await unlockSeat(movie.id, timeSlot, seatId);
-      } catch (unlockErr) {
-        console.warn(`Could not release lock for seat ${seatId}:`, unlockErr);
+        await unlockSeat(
+          movie.id,
+          timeSlot,
+          seatId,
+        );
+      } catch (
+        unlockErr
+      ) {
+        console.warn(
+          `Could not release lock for seat ${seatId}:`,
+          unlockErr,
+        );
       }
     }
 
     const bookingData = {
-      userEmail: currentUser.email,
-      movieTitle: movie.title,
-      posterUrl: movie.posterUrl,
-      movieId: movie.id,
-      timeSlot: timeSlot,
-      seats: seatIds,
-      amount: confirmation.amount,
-      paymentId: paymentRes.razorpay_payment_id,
+      userEmail:
+        currentUser.email,
+
+      movieTitle:
+        movie.title,
+
+      posterUrl:
+        movie.posterUrl,
+
+      movieId:
+        movie.id,
+
+      timeSlot:
+        timeSlot,
+
+      seats:
+        seatIds,
+
+      amount:
+        confirmation.amount,
+
+      paymentId:
+        paymentRes.razorpay_payment_id,
     };
 
-    await generateTicketPDF(bookingData);
+    await generateTicketPDF(
+      bookingData,
+    );
 
     selectedSeatIds.clear();
 
@@ -1457,25 +2010,30 @@ async function completeBookingAfterPayment(movie, timeSlot, seatIds, paymentRes)
 
     router("profile");
   } catch (err) {
-    console.error("Booking confirmation error:", err);
-
-    /*
-     * VERY IMPORTANT:
-     *
-     * Payment may have succeeded at Razorpay
-     * but backend confirmation may have failed.
-     *
-     * Therefore don't silently claim that
-     * everything succeeded.
-     */
+    console.error(
+      "Booking confirmation error:",
+      err,
+    );
 
     showCustomPopup(
-      err.message ||
+      getErrorMessage(
+        err,
         "Payment was processed, but the booking could not be completed. Please contact support if the amount was deducted.",
+      ),
       "error",
     );
 
-    router("seats", { movie, timeSlot });
+    /*
+     * Do not silently lose the booking page.
+     * Return to seats so the user can see the state.
+     */
+    router(
+      "seats",
+      {
+        movie,
+        timeSlot,
+      },
+    );
   }
 }
 
@@ -1483,136 +2041,262 @@ async function completeBookingAfterPayment(movie, timeSlot, seatIds, paymentRes)
    PDF IMAGE HELPER
    ============================================================ */
 
-function getBase64ImageFromUrl(imageUrl) {
-  return new Promise((resolve) => {
-    const img = new Image();
+function getBase64ImageFromUrl(
+  imageUrl,
+) {
+  return new Promise(
+    (resolve) => {
+      const img =
+        new Image();
 
-    img.crossOrigin = "Anonymous";
+      img.crossOrigin =
+        "Anonymous";
 
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
+      img.onload = () => {
+        const canvas =
+          document.createElement(
+            "canvas",
+          );
 
-      canvas.width = img.width;
+        canvas.width =
+          img.width;
 
-      canvas.height = img.height;
+        canvas.height =
+          img.height;
 
-      const ctx = canvas.getContext("2d");
+        const ctx =
+          canvas.getContext(
+            "2d",
+          );
 
-      ctx.drawImage(img, 0, 0);
+        ctx.drawImage(
+          img,
+          0,
+          0,
+        );
 
-      resolve(canvas.toDataURL("image/jpeg"));
-    };
+        resolve(
+          canvas.toDataURL(
+            "image/jpeg",
+          ),
+        );
+      };
 
-    img.onerror = () => resolve(null);
+      img.onerror =
+        () => resolve(null);
 
-    img.src = imageUrl;
-  });
+      img.src =
+        imageUrl;
+    },
+  );
 }
 
 /* ============================================================
    GENERATE PDF TICKET
    ============================================================ */
 
-async function generateTicketPDF(booking) {
-  if (!window.jspdf) return;
+async function generateTicketPDF(
+  booking,
+) {
+  if (!window.jspdf) {
+    console.warn(
+      "jsPDF is not loaded.",
+    );
 
-  const { jsPDF } = window.jspdf;
+    return;
+  }
 
-  const pdf = new jsPDF();
+  const {
+    jsPDF,
+  } = window.jspdf;
 
-  /*
-   * Background
-   */
+  const pdf =
+    new jsPDF();
 
-  pdf.setFillColor(15, 23, 42);
+  pdf.setFillColor(
+    15,
+    23,
+    42,
+  );
 
-  pdf.rect(0, 0, 210, 297, "F");
+  pdf.rect(
+    0,
+    0,
+    210,
+    297,
+    "F",
+  );
 
-  /*
-   * Header
-   */
+  pdf.setTextColor(
+    255,
+    255,
+    255,
+  );
 
-  pdf.setTextColor(255, 255, 255);
+  pdf.setFont(
+    "helvetica",
+    "bold",
+  );
 
-  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(
+    22,
+  );
 
-  pdf.setFontSize(22);
+  pdf.text(
+    "MOVIENEST TICKET RECEIPT",
+    20,
+    25,
+  );
 
-  pdf.text("MOVIENEST TICKET RECEIPT", 20, 25);
+  pdf.setFontSize(
+    12,
+  );
 
-  pdf.setFontSize(12);
+  pdf.setTextColor(
+    244,
+    63,
+    94,
+  );
 
-  pdf.setTextColor(244, 63, 94);
+  pdf.text(
+    "Confirmed Booking Pass",
+    20,
+    33,
+  );
 
-  pdf.text("Confirmed Booking Pass", 20, 33);
+  pdf.setDrawColor(
+    51,
+    65,
+    85,
+  );
 
-  pdf.setDrawColor(51, 65, 85);
+  pdf.line(
+    20,
+    38,
+    190,
+    38,
+  );
 
-  pdf.line(20, 38, 190, 38);
-
-  /*
-   * Poster
-   */
-
-  if (booking.posterUrl) {
-    const base64Img = await getBase64ImageFromUrl(booking.posterUrl);
+  if (
+    booking.posterUrl
+  ) {
+    const base64Img =
+      await getBase64ImageFromUrl(
+        booking.posterUrl,
+      );
 
     if (base64Img) {
-      pdf.addImage(base64Img, "JPEG", 140, 45, 50, 70);
+      pdf.addImage(
+        base64Img,
+        "JPEG",
+        140,
+        45,
+        50,
+        70,
+      );
     }
   }
 
-  /*
-   * Movie name
-   */
+  pdf.setFontSize(
+    16,
+  );
 
-  pdf.setFontSize(16);
+  pdf.setTextColor(
+    255,
+    255,
+    255,
+  );
 
-  pdf.setTextColor(255, 255, 255);
+  pdf.setFont(
+    "helvetica",
+    "bold",
+  );
 
-  pdf.setFont("helvetica", "bold");
+  pdf.text(
+    `Movie: ${booking.movieTitle || "N/A"}`,
+    20,
+    52,
+  );
 
-  pdf.text(`Movie: ${booking.movieTitle || "N/A"}`, 20, 52);
+  pdf.setTextColor(
+    203,
+    213,
+    225,
+  );
 
-  /*
-   * Booking details
-   */
+  pdf.setFont(
+    "helvetica",
+    "normal",
+  );
 
-  pdf.setTextColor(203, 213, 225);
-
-  pdf.setFont("helvetica", "normal");
-
-  pdf.setFontSize(11);
+  pdf.setFontSize(
+    11,
+  );
 
   let y = 65;
 
-  pdf.text(`User Email: ${booking.userEmail || ""}`, 20, y);
+  pdf.text(
+    `User Email: ${booking.userEmail || ""}`,
+    20,
+    y,
+  );
 
   y += 10;
 
-  pdf.text(`Showtime Slot: ${booking.timeSlot || ""}`, 20, y);
+  pdf.text(
+    `Showtime Slot: ${booking.timeSlot || ""}`,
+    20,
+    y,
+  );
 
   y += 10;
 
-  pdf.text(`Selected Seats: ${booking.seats.join(", ")}`, 20, y);
+  pdf.text(
+    `Selected Seats: ${(booking.seats || []).join(", ")}`,
+    20,
+    y,
+  );
 
   y += 10;
 
-  pdf.text(`Total Paid Amount: Rs.${booking.amount}`, 20, y);
+  pdf.text(
+    `Total Paid Amount: Rs.${booking.amount || 0}`,
+    20,
+    y,
+  );
 
   y += 10;
 
-  pdf.text(`Razorpay Payment ID: ${booking.paymentId || ""}`, 20, y);
+  pdf.text(
+    `Razorpay Payment ID: ${booking.paymentId || ""}`,
+    20,
+    y,
+  );
 
   y += 10;
 
-  pdf.text(`Booking Date: ${new Date().toLocaleString()}`, 20, y);
+  pdf.text(
+    `Booking Date: ${new Date().toLocaleString()}`,
+    20,
+    y,
+  );
 
-  pdf.line(20, 130, 190, 130);
+  pdf.line(
+    20,
+    130,
+    190,
+    130,
+  );
 
-  pdf.setFontSize(10);
+  pdf.setFontSize(
+    10,
+  );
 
-  pdf.setTextColor(148, 163, 184);
+  pdf.setTextColor(
+    148,
+    163,
+    184,
+  );
 
   pdf.text(
     "Please present this ticket confirmation at the entrance counter. Enjoy your movie!",
@@ -1620,10 +2304,22 @@ async function generateTicketPDF(booking) {
     140,
   );
 
+  const safeMovieName =
+    String(
+      booking.movieTitle ||
+        "Booking",
+    )
+      .replace(
+        /[<>:"/\\|?*]+/g,
+        "",
+      )
+      .replace(
+        /\s+/g,
+        "_",
+      );
+
   pdf.save(
-    `Ticket-${
-      booking.movieTitle ? booking.movieTitle.replace(/\s+/g, "_") : "Booking"
-    }.pdf`,
+    `Ticket-${safeMovieName}.pdf`,
   );
 }
 
@@ -1632,7 +2328,12 @@ async function generateTicketPDF(booking) {
    ============================================================ */
 
 async function renderUserProfile() {
-  const appView = document.getElementById("app-view");
+  const appView =
+    document.getElementById(
+      "app-view",
+    );
+
+  if (!appView) return;
 
   appView.innerHTML = `
     <h1 class="text-3xl font-extrabold mb-6">
@@ -1643,27 +2344,41 @@ async function renderUserProfile() {
       class="space-y-4"
       id="bookings-list"
     >
-
       <div
         class="animate-pulse bg-slate-900 h-24 rounded-xl"
       ></div>
-
     </div>
   `;
 
   try {
-    const q = query(
-      collection(db, "bookings"),
-      where("userId", "==", currentUser.uid),
-    );
+    const q =
+      query(
+        collection(
+          db,
+          "bookings",
+        ),
+        where(
+          "userId",
+          "==",
+          currentUser.uid,
+        ),
+      );
 
-    const querySnapshot = await getDocs(q);
+    const querySnapshot =
+      await getDocs(q);
 
-    const list = document.getElementById("bookings-list");
+    const list =
+      document.getElementById(
+        "bookings-list",
+      );
+
+    if (!list) return;
 
     list.innerHTML = "";
 
-    if (querySnapshot.empty) {
+    if (
+      querySnapshot.empty
+    ) {
       list.innerHTML = `
         <p class="text-slate-500">
           You haven't made any bookings yet.
@@ -1673,51 +2388,53 @@ async function renderUserProfile() {
       return;
     }
 
-    querySnapshot.forEach((docSnap) => {
-      const booking = docSnap.data();
+    querySnapshot.forEach(
+      (docSnap) => {
+        const booking =
+          docSnap.data();
 
-      const card = document.createElement("div");
+        const card =
+          document.createElement(
+            "div",
+          );
 
-      card.className =
-        "bg-slate-900 border border-slate-800 p-6 rounded-xl flex justify-between items-center gap-4";
+        card.className =
+          "bg-slate-900 border border-slate-800 p-6 rounded-xl flex justify-between items-center gap-4";
 
-      card.innerHTML = `
+        card.innerHTML = `
           <div>
-
-            <p
-              class="text-xs text-rose-500 font-bold mb-1"
-            >
-              Booking ID:
-              ${docSnap.id}
+            <p class="text-xs text-rose-500 font-bold mb-1">
+              Booking ID: ${escapeHTML(
+                docSnap.id,
+              )}
             </p>
 
-            <h3
-              class="text-lg font-bold"
-            >
-              ${escapeHTML(booking.movieTitle || "Movie")}
+            <h3 class="text-lg font-bold">
+              ${escapeHTML(
+                booking.movieTitle ||
+                  "Movie",
+              )}
             </h3>
 
-            <p
-              class="text-sm text-slate-400"
-            >
-              Time Slot:
-              ${escapeHTML(booking.timeSlot || "")}
+            <p class="text-sm text-slate-400">
+              Time Slot: ${escapeHTML(
+                booking.timeSlot ||
+                  "",
+              )}
             </p>
 
-            <p
-              class="text-sm text-slate-400"
-            >
-              Seats:
-              ${escapeHTML((booking.seats || []).join(", "))}
+            <p class="text-sm text-slate-400">
+              Seats: ${escapeHTML(
+                (
+                  booking.seats ||
+                  []
+                ).join(", "),
+              )}
             </p>
-
           </div>
 
           <div class="text-right">
-
-            <p
-              class="text-lg font-bold"
-            >
+            <p class="text-lg font-bold">
               ₹${booking.amount || 0}
             </p>
 
@@ -1726,39 +2443,60 @@ async function renderUserProfile() {
             >
               Confirmed
             </span>
-
           </div>
         `;
 
-      list.appendChild(card);
-    });
+        list.appendChild(
+          card,
+        );
+      },
+    );
   } catch (error) {
-    console.error("Booking history error:", error);
+    console.error(
+      "Booking history error:",
+      error,
+    );
 
-    showCustomPopup("Unable to load your booking history.", "error");
+    showCustomPopup(
+      getErrorMessage(
+        error,
+        "Unable to load your booking history.",
+      ),
+      "error",
+    );
   }
 }
-
 /* ============================================================
    CUSTOM POPUP
    ============================================================ */
 
-window.showCustomPopup = function (message, type = "info") {
-  const existingPopup = document.getElementById("custom-popup");
+window.showCustomPopup =
+  function (
+    message,
+    type = "info",
+  ) {
+    const existingPopup =
+      document.getElementById(
+        "custom-popup",
+      );
 
-  if (existingPopup) {
-    existingPopup.remove();
-  }
+    if (existingPopup) {
+      existingPopup.remove();
+    }
 
-  const popup = document.createElement("div");
+    const popup =
+      document.createElement(
+        "div",
+      );
 
-  popup.id = "custom-popup";
+    popup.id =
+      "custom-popup";
 
-  let icon = "";
-  let iconClass = "";
+    let icon = "";
+    let iconClass = "";
 
-  if (type === "success") {
-    icon = `
+    if (type === "success") {
+      icon = `
         <svg
           xmlns="http://www.w3.org/2000/svg"
           class="w-5 h-5"
@@ -1775,9 +2513,12 @@ window.showCustomPopup = function (message, type = "info") {
         </svg>
       `;
 
-    iconClass = "bg-emerald-500/20 text-emerald-400";
-  } else if (type === "error") {
-    icon = `
+      iconClass =
+        "bg-emerald-500/20 text-emerald-400";
+    } else if (
+      type === "error"
+    ) {
+      icon = `
         <svg
           xmlns="http://www.w3.org/2000/svg"
           class="w-5 h-5"
@@ -1794,9 +2535,10 @@ window.showCustomPopup = function (message, type = "info") {
         </svg>
       `;
 
-    iconClass = "bg-rose-500/20 text-rose-400";
-  } else {
-    icon = `
+      iconClass =
+        "bg-rose-500/20 text-rose-400";
+    } else {
+      icon = `
         <svg
           xmlns="http://www.w3.org/2000/svg"
           class="w-5 h-5"
@@ -1813,18 +2555,29 @@ window.showCustomPopup = function (message, type = "info") {
         </svg>
       `;
 
-    iconClass = "bg-sky-500/20 text-sky-400";
-  }
+      iconClass =
+        "bg-sky-500/20 text-sky-400";
+    }
 
-  popup.innerHTML = `
+    /*
+     * IMPORTANT:
+     * getErrorMessage() prevents [object Object].
+     */
+    const displayMessage =
+      getErrorMessage(
+        message,
+        String(
+          message ?? "",
+        ),
+      );
+
+    popup.innerHTML = `
       <div
         class="fixed top-6 right-6 z-[9999] max-w-sm w-[calc(100%-2rem)]"
       >
-
         <div
           class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 flex items-start gap-3"
         >
-
           <div
             class="w-9 h-9 shrink-0 rounded-full ${iconClass} flex items-center justify-center"
           >
@@ -1834,7 +2587,9 @@ window.showCustomPopup = function (message, type = "info") {
           <p
             class="text-sm text-slate-200 leading-relaxed flex-1 pt-1"
           >
-            ${escapeHTML(String(message))}
+            ${escapeHTML(
+              displayMessage,
+            )}
           </p>
 
           <button
@@ -1845,247 +2600,499 @@ window.showCustomPopup = function (message, type = "info") {
           >
             &times;
           </button>
-
         </div>
-
       </div>
     `;
 
-  document.body.appendChild(popup);
+    document.body.appendChild(
+      popup,
+    );
 
-  setTimeout(() => {
-    const currentPopup = document.getElementById("custom-popup");
+    setTimeout(() => {
+      const currentPopup =
+        document.getElementById(
+          "custom-popup",
+        );
 
-    if (currentPopup) {
-      currentPopup.remove();
-    }
-  }, 4000);
-};
+      if (currentPopup) {
+        currentPopup.remove();
+      }
+    }, 4000);
+  };
 
 /* ============================================================
    AUTH TAB SWITCHER
    ============================================================ */
 
-window.switchAuthTab = function (mode) {
-  currentAuthMode = mode;
+window.switchAuthTab =
+  function (mode) {
+    currentAuthMode =
+      mode;
 
-  const tabLogin = document.getElementById("tab-login");
+    const tabLogin =
+      document.getElementById(
+        "tab-login",
+      );
 
-  const tabSignup = document.getElementById("tab-signup");
+    const tabSignup =
+      document.getElementById(
+        "tab-signup",
+      );
 
-  const title = document.getElementById("auth-modal-title");
+    const title =
+      document.getElementById(
+        "auth-modal-title",
+      );
 
-  const submitBtn = document.getElementById("auth-submit-btn");
+    const submitBtn =
+      document.getElementById(
+        "auth-submit-btn",
+      );
 
-  const extraFields = document.getElementById("signup-extra-fields");
+    const extraFields =
+      document.getElementById(
+        "signup-extra-fields",
+      );
 
-  if (mode === "login") {
-    tabLogin.className =
-      "flex-1 pb-3 text-center font-bold text-rose-500 border-b-2 border-rose-500 transition";
+    if (
+      !tabLogin ||
+      !tabSignup ||
+      !title ||
+      !submitBtn ||
+      !extraFields
+    ) {
+      return;
+    }
 
-    tabSignup.className =
-      "flex-1 pb-3 text-center font-bold text-slate-400 border-b-2 border-transparent transition";
+    if (mode === "login") {
+      tabLogin.className =
+        "flex-1 pb-3 text-center font-bold text-rose-500 border-b-2 border-rose-500 transition";
 
-    title.innerText = "Welcome Back";
+      tabSignup.className =
+        "flex-1 pb-3 text-center font-bold text-slate-400 border-b-2 border-transparent transition";
 
-    submitBtn.innerText = "Sign In";
+      title.innerText =
+        "Welcome Back";
 
-    extraFields.classList.add("hidden");
+      submitBtn.innerText =
+        "Sign In";
 
-    document.getElementById("auth-name").removeAttribute("required");
-  } else {
-    tabSignup.className =
-      "flex-1 pb-3 text-center font-bold text-rose-500 border-b-2 border-rose-500 transition";
+      extraFields.classList.add(
+        "hidden",
+      );
 
-    tabLogin.className =
-      "flex-1 pb-3 text-center font-bold text-slate-400 border-b-2 border-transparent transition";
+      const nameInput =
+        document.getElementById(
+          "auth-name",
+        );
 
-    title.innerText = "Create New Account";
+      if (nameInput) {
+        nameInput.removeAttribute(
+          "required",
+        );
+      }
+    } else {
+      tabSignup.className =
+        "flex-1 pb-3 text-center font-bold text-rose-500 border-b-2 border-rose-500 transition";
 
-    submitBtn.innerText = "Register & Sign Up";
+      tabLogin.className =
+        "flex-1 pb-3 text-center font-bold text-slate-400 border-b-2 border-transparent transition";
 
-    extraFields.classList.remove("hidden");
+      title.innerText =
+        "Create New Account";
 
-    document.getElementById("auth-name").setAttribute("required", "true");
-  }
-};
+      submitBtn.innerText =
+        "Register & Sign Up";
+
+      extraFields.classList.remove(
+        "hidden",
+      );
+
+      const nameInput =
+        document.getElementById(
+          "auth-name",
+        );
+
+      if (nameInput) {
+        nameInput.setAttribute(
+          "required",
+          "true",
+        );
+      }
+    }
+  };
 
 /* ============================================================
    OPEN AUTH MODAL
    ============================================================ */
 
-window.openAuthModal = function (mode = "login") {
-  switchAuthTab(mode);
+window.openAuthModal =
+  function (
+    mode = "login",
+  ) {
+    switchAuthTab(mode);
 
-  document.getElementById("auth-modal").classList.remove("hidden");
-};
+    const modal =
+      document.getElementById(
+        "auth-modal",
+      );
+
+    if (modal) {
+      modal.classList.remove(
+        "hidden",
+      );
+    }
+  };
 
 /* ============================================================
    CLOSE AUTH MODAL
    ============================================================ */
 
-window.closeAuthModal = function () {
-  document.getElementById("auth-modal").classList.add("hidden");
-};
+window.closeAuthModal =
+  function () {
+    const modal =
+      document.getElementById(
+        "auth-modal",
+      );
+
+    if (modal) {
+      modal.classList.add(
+        "hidden",
+      );
+    }
+  };
 
 /* ============================================================
    AUTH SUBMIT
    ============================================================ */
 
-window.handleAuthSubmit = async function (e) {
-  e.preventDefault();
+window.handleAuthSubmit =
+  async function (e) {
+    e.preventDefault();
 
-  const email = document.getElementById("auth-email").value;
-
-  const password = document.getElementById("auth-password").value;
-
-  if (currentAuthMode === "login") {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-
-      closeAuthModal();
-    } catch (err) {
-      console.error("Login Error:", err.code);
-
-      if (
-        err.code === "auth/invalid-credential" ||
-        err.code === "auth/user-not-found" ||
-        err.code === "auth/wrong-password"
-      ) {
-        showCustomPopup(
-          "Invalid email or password. Please verify your credentials or create a new account.",
-          "error",
-        );
-      } else {
-        showCustomPopup("Login Failed: " + err.message, "error");
-      }
-    }
-  } else {
-    const name = document.getElementById("auth-name").value;
-
-    const phone = document.getElementById("auth-phone").value;
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password,
+    const emailInput =
+      document.getElementById(
+        "auth-email",
       );
 
-      const user = userCredential.user;
+    const passwordInput =
+      document.getElementById(
+        "auth-password",
+      );
 
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
+    if (
+      !emailInput ||
+      !passwordInput
+    ) {
+      return;
+    }
 
-        name: name,
+    const email =
+      emailInput.value.trim();
 
-        email: email,
+    const password =
+      passwordInput.value;
 
-        phone: phone || "",
-
-        createdAt: new Date(),
-      });
-
-      showCustomPopup("Account created successfully!", "success");
-
-      closeAuthModal();
-    } catch (createErr) {
-      console.error("Signup Error:", createErr.code);
-
-      if (createErr.code === "auth/email-already-in-use") {
-        showCustomPopup(
-          "This email is already registered. Please switch to the Sign In tab.",
-          "error",
+    if (
+      currentAuthMode ===
+      "login"
+    ) {
+      try {
+        await signInWithEmailAndPassword(
+          auth,
+          email,
+          password,
         );
-      } else {
-        showCustomPopup("Registration Failed: " + createErr.message, "error");
+
+        closeAuthModal();
+      } catch (err) {
+        console.error(
+          "Login Error:",
+          err,
+        );
+
+        if (
+          err.code ===
+            "auth/invalid-credential" ||
+          err.code ===
+            "auth/user-not-found" ||
+          err.code ===
+            "auth/wrong-password"
+        ) {
+          showCustomPopup(
+            "Invalid email or password. Please verify your credentials or create a new account.",
+            "error",
+          );
+        } else {
+          showCustomPopup(
+            "Login Failed: " +
+              getErrorMessage(
+                err,
+                "Unknown login error.",
+              ),
+            "error",
+          );
+        }
+      }
+    } else {
+      const nameInput =
+        document.getElementById(
+          "auth-name",
+        );
+
+      const phoneInput =
+        document.getElementById(
+          "auth-phone",
+        );
+
+      const name =
+        nameInput
+          ? nameInput.value.trim()
+          : "";
+
+      const phone =
+        phoneInput
+          ? phoneInput.value.trim()
+          : "";
+
+      try {
+        const userCredential =
+          await createUserWithEmailAndPassword(
+            auth,
+            email,
+            password,
+          );
+
+        const user =
+          userCredential.user;
+
+        await setDoc(
+          doc(
+            db,
+            "users",
+            user.uid,
+          ),
+          {
+            uid:
+              user.uid,
+
+            name:
+              name,
+
+            email:
+              email,
+
+            phone:
+              phone || "",
+
+            createdAt:
+              new Date(),
+          },
+        );
+
+        showCustomPopup(
+          "Account created successfully!",
+          "success",
+        );
+
+        closeAuthModal();
+      } catch (
+        createErr
+      ) {
+        console.error(
+          "Signup Error:",
+          createErr,
+        );
+
+        if (
+          createErr.code ===
+          "auth/email-already-in-use"
+        ) {
+          showCustomPopup(
+            "This email is already registered. Please switch to the Sign In tab.",
+            "error",
+          );
+        } else {
+          showCustomPopup(
+            "Registration Failed: " +
+              getErrorMessage(
+                createErr,
+                "Unknown registration error.",
+              ),
+            "error",
+          );
+        }
       }
     }
-  }
-};
+  };
 
 /* ============================================================
    LOGOUT
    ============================================================ */
 
-window.handleLogout = function () {
-  cleanupSeatListeners();
+window.handleLogout =
+  function () {
+    cleanupSeatListeners();
 
-  selectedSeatIds.clear();
+    selectedSeatIds.clear();
 
-  signOut(auth);
-};
+    signOut(auth).catch(
+      (error) => {
+        console.error(
+          "Logout error:",
+          error,
+        );
+
+        showCustomPopup(
+          getErrorMessage(
+            error,
+            "Logout failed.",
+          ),
+          "error",
+        );
+      },
+    );
+  };
 
 /* ============================================================
    GOOGLE SIGN IN
    ============================================================ */
 
-window.handleGoogleSignIn = async function () {
-  const provider = new GoogleAuthProvider();
+window.handleGoogleSignIn =
+  async function () {
+    const provider =
+      new GoogleAuthProvider();
 
-  try {
-    const result = await signInWithPopup(auth, provider);
+    try {
+      const result =
+        await signInWithPopup(
+          auth,
+          provider,
+        );
 
-    const user = result.user;
+      const user =
+        result.user;
 
-    const userDocRef = doc(db, "users", user.uid);
+      const userDocRef =
+        doc(
+          db,
+          "users",
+          user.uid,
+        );
 
-    const userSnap = await getDoc(userDocRef);
+      const userSnap =
+        await getDoc(
+          userDocRef,
+        );
 
-    if (!userSnap.exists()) {
-      await setDoc(userDocRef, {
-        uid: user.uid,
+      if (
+        !userSnap.exists()
+      ) {
+        await setDoc(
+          userDocRef,
+          {
+            uid:
+              user.uid,
 
-        name: user.displayName || "Google User",
+            name:
+              user.displayName ||
+              "Google User",
 
-        email: user.email,
+            email:
+              user.email ||
+              "",
 
-        phone: user.phoneNumber || "",
+            phone:
+              user.phoneNumber ||
+              "",
 
-        createdAt: new Date(),
-      });
+            createdAt:
+              new Date(),
+          },
+        );
+      }
+
+      closeAuthModal();
+    } catch (err) {
+      console.error(
+        "Google Sign-In Error:",
+        err,
+      );
+
+      showCustomPopup(
+        "Google Sign-In Failed: " +
+          getErrorMessage(
+            err,
+            "Unknown Google sign-in error.",
+          ),
+        "error",
+      );
     }
-
-    closeAuthModal();
-  } catch (err) {
-    console.error("Google Sign-In Error:", err);
-
-    showCustomPopup("Google Sign-In Failed: " + err.message, "error");
-  }
-};
+  };
 
 /* ============================================================
    THEME SWITCHER
    ============================================================ */
 
-window.toggleTheme = function () {
-  const body = document.body;
+window.toggleTheme =
+  function () {
+    const body =
+      document.body;
 
-  const btn = document.getElementById("theme-toggle-btn");
+    const btn =
+      document.getElementById(
+        "theme-toggle-btn",
+      );
 
-  body.classList.toggle("light-theme");
+    body.classList.toggle(
+      "light-theme",
+    );
 
-  const isLight = body.classList.contains("light-theme");
+    const isLight =
+      body.classList.contains(
+        "light-theme",
+      );
 
-  localStorage.setItem("app-theme", isLight ? "light" : "dark");
+    localStorage.setItem(
+      "app-theme",
+      isLight
+        ? "light"
+        : "dark",
+    );
 
-  if (btn) btn.innerText = isLight ? "☀️ Light Mode" : "🌙 Dark Mode";
-};
+    if (btn) {
+      btn.innerText =
+        isLight
+          ? "☀️ Light Mode"
+          : "🌙 Dark Mode";
+    }
+  };
 
 /* ============================================================
    INITIALIZE THEME
    ============================================================ */
 
 (function initTheme() {
-  const savedTheme = localStorage.getItem("app-theme");
+  const savedTheme =
+    localStorage.getItem(
+      "app-theme",
+    );
 
-  if (savedTheme === "light") {
-    document.body.classList.add("light-theme");
+  if (
+    savedTheme === "light"
+  ) {
+    document.body.classList.add(
+      "light-theme",
+    );
 
-    const btn = document.getElementById("theme-toggle-btn");
+    const btn =
+      document.getElementById(
+        "theme-toggle-btn",
+      );
 
     if (btn) {
-      btn.innerText = "☀️ Light Mode";
+      btn.innerText =
+        "☀️ Light Mode";
     }
   }
 })();
@@ -2095,53 +3102,79 @@ window.toggleTheme = function () {
    ============================================================ */
 
 function initPasswordToggle() {
-  const passwordInput = document.getElementById("auth-password");
-
-  const togglePassword = document.getElementById("toggle-password");
-
-  const eyeOpen = document.getElementById("eye-open");
-
-  const eyeClosed = document.getElementById("eye-closed");
-
-  if (!passwordInput || !togglePassword) {
-    return;
-  }
-
-  /*
-   * Prevent duplicate listeners
-   */
-
-  if (togglePassword.dataset.initialized === "true") {
-    return;
-  }
-
-  togglePassword.dataset.initialized = "true";
-
-  togglePassword.addEventListener("click", () => {
-    const isPassword = passwordInput.type === "password";
-
-    passwordInput.type = isPassword ? "text" : "password";
-
-    if (eyeOpen) {
-      eyeOpen.classList.toggle("hidden", !isPassword);
-    }
-
-    if (eyeClosed) {
-      eyeClosed.classList.toggle("hidden", isPassword);
-    }
-
-    togglePassword.setAttribute(
-      "aria-label",
-      isPassword ? "Hide password" : "Show password",
+  const passwordInput =
+    document.getElementById(
+      "auth-password",
     );
-  });
-}
 
-/*
- * Because auth HTML is already present
- * when app.js loads in your index.html,
- * initialize it now.
- */
+  const togglePassword =
+    document.getElementById(
+      "toggle-password",
+    );
+
+  const eyeOpen =
+    document.getElementById(
+      "eye-open",
+    );
+
+  const eyeClosed =
+    document.getElementById(
+      "eye-closed",
+    );
+
+  if (
+    !passwordInput ||
+    !togglePassword
+  ) {
+    return;
+  }
+
+  if (
+    togglePassword.dataset
+      .initialized ===
+    "true"
+  ) {
+    return;
+  }
+
+  togglePassword.dataset.initialized =
+    "true";
+
+  togglePassword.addEventListener(
+    "click",
+    () => {
+      const isPassword =
+        passwordInput.type ===
+        "password";
+
+      passwordInput.type =
+        isPassword
+          ? "text"
+          : "password";
+
+      if (eyeOpen) {
+        eyeOpen.classList.toggle(
+          "hidden",
+          !isPassword,
+        );
+      }
+
+      if (eyeClosed) {
+        eyeClosed.classList.toggle(
+          "hidden",
+          isPassword,
+        );
+      }
+
+      togglePassword.setAttribute(
+        "aria-label",
+        isPassword
+          ? "Hide password"
+          : "Show password",
+      );
+    },
+  );
+}
 
 initPasswordToggle();
 
@@ -2149,45 +3182,88 @@ initPasswordToggle();
    FORGOT PASSWORD
    ============================================================ */
 
-window.openForgotPassword = async function () {
-  const emailInput = document.getElementById("auth-email");
+window.openForgotPassword =
+  async function () {
+    const emailInput =
+      document.getElementById(
+        "auth-email",
+      );
 
-  const email = emailInput.value.trim();
+    if (!emailInput) {
+      showCustomPopup(
+        "Email field not found.",
+        "error",
+      );
 
-  if (!email) {
-    showCustomPopup("Please enter your email address first.", "error");
+      return;
+    }
 
-    emailInput.focus();
+    const email =
+      emailInput.value.trim();
 
-    return;
-  }
+    if (!email) {
+      showCustomPopup(
+        "Please enter your email address first.",
+        "error",
+      );
 
-  try {
-    await sendPasswordResetEmail(auth, email);
+      emailInput.focus();
 
-    showCustomPopup(
-      "Password reset email sent successfully. Please check your inbox.",
-      "success",
-    );
-  } catch (error) {
-    console.error("Password reset error:", error);
+      return;
+    }
 
-    showCustomPopup(
-      error.message || "Failed to send password reset email.",
-      "error",
-    );
-  }
-};
+    try {
+      await sendPasswordResetEmail(
+        auth,
+        email,
+      );
+
+      showCustomPopup(
+        "Password reset email sent successfully. Please check your inbox.",
+        "success",
+      );
+    } catch (error) {
+      console.error(
+        "Password reset error:",
+        error,
+      );
+
+      showCustomPopup(
+        getErrorMessage(
+          error,
+          "Failed to send password reset email.",
+        ),
+        "error",
+      );
+    }
+  };
 
 /* ============================================================
    HTML ESCAPE HELPER
    ============================================================ */
 
 function escapeHTML(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return String(
+    value ?? "",
+  )
+    .replace(
+      /&/g,
+      "&amp;",
+    )
+    .replace(
+      /</g,
+      "&lt;",
+    )
+    .replace(
+      />/g,
+      "&gt;",
+    )
+    .replace(
+      /"/g,
+      "&quot;",
+    )
+    .replace(
+      /'/g,
+      "&#039;",
+    );
 }
