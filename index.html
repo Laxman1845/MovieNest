@@ -152,91 +152,84 @@
               Password
             </label>
 
-            <div class="relative">
-              <input
-                type="password"
-                id="auth-password"
-                required
-                minlength="6"
-                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 pr-12 text-white focus:outline-none focus:border-rose-500"
-              />
+            <div>
+  <label class="block text-sm font-medium text-slate-400 mb-1">
+    Password
+  </label>
 
-              <button
-                type="button"
-                id="toggle-password"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"
-                aria-label="Show password"
-              >
-                <!-- Eye Icon -->
-                <svg
-                  id="eye-open"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
+  <div class="relative">
+    <input
+      type="password"
+      id="auth-password"
+      required
+      minlength="6"
+      class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 pr-12 text-white focus:outline-none focus:border-rose-500"
+    />
 
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
+    <button
+      type="button"
+      id="toggle-password"
+      class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"
+      aria-label="Show password"
+    >
 
-                <!-- Eye Off Icon -->
-                <svg
-                  id="eye-closed"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5 hidden"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M3 3l18 18"
-                  />
+      <svg
+        id="eye-open"
+        xmlns="http://www.w3.org/2000/svg"
+        class="w-5 h-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+        />
 
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M10.477 10.477a3 3 0 004.046 4.046"
-                  />
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+        />
+      </svg>
 
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M6.228 6.228C4.62 7.5 3.348 9.3 2.458 12c1.274 4.057 5.064 7 9.542 7 1.61 0 3.13-.4 4.457-1.105"
-                  />
+      <svg
+        id="eye-closed"
+        xmlns="http://www.w3.org/2000/svg"
+        class="w-5 h-5 hidden"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 012.44-4.122"
+        />
 
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M9.88 5.09A9.9 9.9 0 0112 5c4.478 0 8.268 2.943 9.542 7a11.4 11.4 0 01-2.163 3.592"
-                  />
-                </svg>
-              </button>
-            </div>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M6.223 6.223A9.955 9.955 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.97 9.97 0 01-4.132 5.411"
+        />
 
-            <p class="text-xs text-slate-500 mt-1">
-              Must be at least 6 characters.
-            </p>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M3 3l18 18"
+        />
+      </svg>
 
-            <div class="flex justify-end mt-2">
-              <button
-                type="button"
-                onclick="openForgotPassword()"
-                class="text-sm text-rose-500 hover:text-rose-400 transition"
-              >
-                Forgot Password?
-              </button>
-            </div>
-          </div>
+    </button>
+  </div>
+
+  <p class="text-xs text-slate-500 mt-1">
+    Must be at least 6 characters.
+  </p>
+</div>
 
           <button
             type="submit"
