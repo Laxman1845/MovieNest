@@ -23,6 +23,7 @@ import {
   where,
   runTransaction,
   Timestamp,
+  orderBy,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const API_BASE_URL =
@@ -1401,15 +1402,12 @@ async function completeBookingAfterPayment(
 
       body: JSON.stringify({
         movie_id: movie.id,
-
+        movie_title: movie.title,
+        poster_url: movie.posterUrl || "",
         time_slot: timeSlot,
-
         seats: seatIds,
-
         order_id: paymentRes.razorpay_order_id,
-
         payment_id: paymentRes.razorpay_payment_id,
-
         signature: paymentRes.razorpay_signature,
       }),
     });
@@ -1640,6 +1638,7 @@ async function renderUserProfile() {
     const q = query(
       collection(db, "bookings"),
       where("userId", "==", currentUser.uid),
+      orderBy("createdAt", "desc"),
     );
 
     const querySnapshot = await getDocs(q);

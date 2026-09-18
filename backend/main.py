@@ -918,42 +918,48 @@ def confirm_booking(
 
         booking_data = {
 
-            "userId":
-                user["uid"],
+    "userId":
+        user["uid"],
 
-            "userEmail":
-                user.get(
-                    "email",
-                    "",
-                ),
+    "userEmail":
+        user.get(
+            "email",
+            "",
+        ),
 
-            "movieId":
-                payload.movie_id,
+    "movieId":
+        payload.movie_id,
 
-            "timeSlot":
-                payload.time_slot,
+    "movieTitle":
+        movie.to_dict().get(
+            "title",
+            "Movie",
+        ),
 
-            "seats":
-                payload.seats,
+    "timeSlot":
+        payload.time_slot,
 
-            "amount":
-                (
-                    len(payload.seats)
-                    * PRICE_PER_SEAT
-                ),
+    "seats":
+        payload.seats,
 
-            "paymentId":
-                payload.payment_id,
+    "amount":
+        (
+            len(payload.seats)
+            * PRICE_PER_SEAT
+        ),
 
-            "orderId":
-                payload.order_id,
+    "paymentId":
+        payload.payment_id,
 
-            "status":
-                "confirmed",
+    "orderId":
+        payload.order_id,
 
-            "createdAt":
-                firestore.SERVER_TIMESTAMP,
-        }
+    "status":
+        "confirmed",
+
+    "createdAt":
+        firestore.SERVER_TIMESTAMP,
+}
 
         # ----------------------------------------------------
         # UPDATE BOOKED SEATS
