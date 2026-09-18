@@ -42,7 +42,7 @@ let bookedSeatsUnsubscribe = null;
 let seatLockTimer = null;
 
 const SEAT_PRICE = 200;
-const SEAT_LOCK_DURATION = 10 * 60 * 1000;
+const SEAT_LOCK_DURATION = 5 * 60 * 1000;
 
 /* ============================================================
    ERROR MESSAGE HELPER
