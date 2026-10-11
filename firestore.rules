@@ -15,6 +15,29 @@ service cloud.firestore {
     match /movies/{movieId} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();
+
+      match /reviews/{userId} {
+        allow read: if signedIn();
+        allow create, update: if signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasAll([
+            'rating',
+            'text',
+            'updatedAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'rating',
+            'text',
+            'updatedAt'
+          ])
+          && request.resource.data.rating is int
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 5
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.updatedAt == request.time;
+      }
     }
 
     match /users/{userId} {

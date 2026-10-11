@@ -24,10 +24,22 @@ import {
   runTransaction,
   Timestamp,
   orderBy,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const API_BASE_URL =
-  window.MOVIENEST_API_URL || "https://movienest-lxf7.onrender.com";
+const isLocalFrontend = [
+  "localhost",
+  "127.0.0.1",
+].includes(window.location.hostname);
+
+const API_BASE_URL = (
+  window.MOVIENEST_API_URL ||
+  (isLocalFrontend
+    ? "http://127.0.0.1:8000"
+    : "https://movienest-lxf7.onrender.com")
+)
+    .trim()
+    .replace(/\/+$/, "");
 
 let currentUser = null;
 let currentViewData = {};
@@ -449,6 +461,70 @@ function renderMovieDetails(movie) {
         </div>
       </div>
     </div>
+
+    <section
+      id="movie-reviews"
+      data-movie-id="${escapeHTML(movie.id)}"
+      class="border-t border-slate-800 mt-10 pt-8"
+    >
+      <div class="mb-5">
+        <h2 class="text-2xl font-bold">Ratings &amp; Reviews</h2>
+        <p id="reviews-summary" class="text-slate-400 mt-1">
+          Loading reviews...
+        </p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+        <h3 id="review-form-title" class="text-lg font-bold mb-4">
+          Share your review
+        </h3>
+        <form id="movie-review-form" class="space-y-4">
+          <div>
+            <label for="review-rating" class="block text-sm text-slate-400 mb-1">
+              Your rating
+            </label>
+            <select
+              id="review-rating"
+              required
+              class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+            >
+              <option value="5">5 - Loved it</option>
+              <option value="4">4 - Really good</option>
+              <option value="3">3 - It was okay</option>
+              <option value="2">2 - Not great</option>
+              <option value="1">1 - Disappointing</option>
+            </select>
+          </div>
+          <div>
+            <label for="review-text" class="block text-sm text-slate-400 mb-1">
+              Your review
+            </label>
+            <textarea
+              id="review-text"
+              required
+              maxlength="500"
+              rows="4"
+              placeholder="What did you think of the movie?"
+              class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white"
+            ></textarea>
+            <p id="review-char-count" class="text-xs text-slate-500 mt-1">
+              0 / 500
+            </p>
+          </div>
+          <button
+            id="submit-review-btn"
+            type="submit"
+            class="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-lg font-semibold transition"
+          >
+            Submit review
+          </button>
+        </form>
+      </div>
+
+      <div id="reviews-list" class="space-y-3">
+        <p class="text-slate-500">Loading reviews...</p>
+      </div>
+    </section>
   `;
 
   document.getElementById("show-10am").onclick = () =>
@@ -459,6 +535,182 @@ function renderMovieDetails(movie) {
 
   document.getElementById("show-7pm").onclick = () =>
     proceedToSeats(movie, "07:00 PM");
+
+  const reviewForm = document.getElementById("movie-review-form");
+  const reviewText = document.getElementById("review-text");
+
+  reviewForm.addEventListener("submit", (event) =>
+    submitMovieReview(event, movie),
+  );
+  reviewText.addEventListener("input", updateReviewCharacterCount);
+  loadMovieReviews(movie);
+}
+
+async function loadMovieReviews(movie) {
+  const section = document.getElementById("movie-reviews");
+  const summary = document.getElementById("reviews-summary");
+  const list = document.getElementById("reviews-list");
+
+  if (
+    !section ||
+    section.dataset.movieId !== movie.id ||
+    !summary ||
+    !list
+  ) {
+    return;
+  }
+
+  try {
+    const snapshot = await getDocs(
+      collection(db, "movies", movie.id, "reviews"),
+    );
+
+    if (section.dataset.movieId !== movie.id) return;
+
+    const reviews = snapshot.docs.map((reviewDoc) => ({
+      id: reviewDoc.id,
+      ...reviewDoc.data(),
+    }));
+    const average = reviews.length
+      ? reviews.reduce((total, review) => total + review.rating, 0) /
+        reviews.length
+      : 0;
+
+    summary.textContent = reviews.length
+      ? `★ ${average.toFixed(1)} / 5 · ${reviews.length} ${
+          reviews.length === 1 ? "review" : "reviews"
+        }`
+      : "No reviews yet. Be the first to share your thoughts.";
+
+    const ownReview = reviews.find(
+      (review) => review.id === currentUser?.uid,
+    );
+    const ratingInput = document.getElementById("review-rating");
+    const textInput = document.getElementById("review-text");
+    const formTitle = document.getElementById("review-form-title");
+    const submitButton = document.getElementById("submit-review-btn");
+
+    if (ownReview && ratingInput && textInput && formTitle && submitButton) {
+      ratingInput.value = String(ownReview.rating);
+      textInput.value = ownReview.text;
+      formTitle.textContent = "Edit your review";
+      submitButton.textContent = "Update review";
+      updateReviewCharacterCount();
+    }
+
+    reviews.sort((first, second) => {
+      const firstDate = first.updatedAt?.toDate?.()?.getTime() || 0;
+      const secondDate = second.updatedAt?.toDate?.()?.getTime() || 0;
+      return secondDate - firstDate;
+    });
+
+    list.innerHTML = reviews.length
+      ? reviews
+          .map((review) => {
+            const isOwnReview = review.id === currentUser?.uid;
+            const reviewDate = review.updatedAt?.toDate?.();
+            const dateLabel =
+              reviewDate instanceof Date &&
+              !Number.isNaN(reviewDate.getTime())
+                ? ` · ${reviewDate.toLocaleDateString()}`
+                : "";
+
+            return `
+              <article class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div class="flex items-center justify-between gap-3 mb-2">
+                  <p class="font-semibold">
+                    ${isOwnReview ? "Your review" : "MovieNest viewer"}
+                    <span class="text-rose-400 ml-2">${"★".repeat(
+                      review.rating,
+                    )}${"☆".repeat(5 - review.rating)}</span>
+                  </p>
+                  <span class="text-xs text-slate-500 shrink-0">
+                    ${dateLabel}
+                  </span>
+                </div>
+                <p class="text-slate-300 whitespace-pre-wrap break-words">
+                  ${escapeHTML(review.text)}
+                </p>
+              </article>
+            `;
+          })
+          .join("")
+      : '<p class="text-slate-500">Reviews you share will appear here.</p>';
+  } catch (error) {
+    console.error("Failed to load movie reviews:", error);
+    if (section.dataset.movieId !== movie.id) return;
+    summary.textContent = "Reviews could not be loaded.";
+    list.innerHTML = `
+      <button
+        type="button"
+        id="retry-load-reviews"
+        class="text-sm text-rose-400 hover:text-rose-300"
+      >
+        Try loading reviews again
+      </button>
+    `;
+    document.getElementById("retry-load-reviews").onclick = () =>
+      loadMovieReviews(movie);
+  }
+}
+
+async function submitMovieReview(event, movie) {
+  event.preventDefault();
+
+  if (!currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const ratingInput = document.getElementById("review-rating");
+  const textInput = document.getElementById("review-text");
+  const submitButton = document.getElementById("submit-review-btn");
+  const rating = Number(ratingInput.value);
+  const text = textInput.value.trim();
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    showCustomPopup("Choose a rating from 1 to 5 stars.", "error");
+    return;
+  }
+
+  if (!text || text.length > 500) {
+    showCustomPopup("Write a review between 1 and 500 characters.", "error");
+    return;
+  }
+
+  submitButton.disabled = true;
+
+  try {
+    await setDoc(
+      doc(db, "movies", movie.id, "reviews", currentUser.uid),
+      {
+        rating,
+        text,
+        updatedAt: serverTimestamp(),
+      },
+    );
+    showCustomPopup("Your review was saved.", "success");
+    await loadMovieReviews(movie);
+  } catch (error) {
+    console.error("Failed to save movie review:", error);
+    showCustomPopup(
+      getErrorMessage(error, "Unable to save your review."),
+      "error",
+    );
+  } finally {
+    if (submitButton.isConnected) {
+      submitButton.disabled = false;
+    }
+  }
+}
+
+function updateReviewCharacterCount() {
+  const reviewText = document.getElementById("review-text");
+  const characterCount = document.getElementById("review-char-count");
+
+  if (reviewText && characterCount) {
+    characterCount.textContent = `${reviewText.value.length} / 500`;
+  }
 }
 
 /* ============================================================
@@ -1802,6 +2054,123 @@ async function generateTicketPDF(booking) {
    USER BOOKING HISTORY
    ============================================================ */
 
+async function cancelBooking(bookingId, button) {
+  if (!currentUser) {
+    showCustomPopup(
+      "Please sign in to cancel a booking.",
+      "error",
+    );
+    return;
+  }
+
+  if (
+    !window.confirm(
+      "Cancel this booking and request a full refund? This cannot be undone.",
+    )
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Processing...";
+
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(
+      `${API_BASE_URL}/api/bookings/${encodeURIComponent(bookingId)}/cancel`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        response.status === 404
+          ? "The selected backend does not have the cancellation endpoint yet. Restart the local backend or deploy the latest backend code."
+          : getErrorMessage(
+              result,
+              "Unable to cancel this booking.",
+            ),
+      );
+    }
+
+    await renderUserProfile();
+    showCustomPopup(
+      `Booking cancelled. A full refund of ₹${result.refundAmount} has been requested.`,
+      "success",
+    );
+  } catch (error) {
+    console.error("Booking cancellation error:", error);
+    if (document.getElementById("bookings-list")) {
+      await renderUserProfile();
+    }
+    showCustomPopup(
+      getErrorMessage(
+        error,
+        "Unable to cancel this booking. Please try again.",
+      ),
+      "error",
+    );
+  }
+}
+
+async function refreshRefundStatus(bookingId, button) {
+  if (!currentUser) {
+    showCustomPopup(
+      "Please sign in to check the refund status.",
+      "error",
+    );
+    return;
+  }
+
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "Checking...";
+
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(
+      `${API_BASE_URL}/api/bookings/${encodeURIComponent(bookingId)}/refund-status`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        getErrorMessage(
+          result,
+          "Unable to retrieve the refund status.",
+        ),
+      );
+    }
+
+    await renderUserProfile();
+    showCustomPopup(
+      `Razorpay refund status: ${result.refundStatus}.`,
+      "info",
+    );
+  } catch (error) {
+    console.error("Refund status lookup error:", error);
+    button.disabled = false;
+    button.textContent = originalText;
+    showCustomPopup(
+      getErrorMessage(
+        error,
+        "Unable to retrieve the refund status. Please try again.",
+      ),
+      "error",
+    );
+  }
+}
+
 async function renderUserProfile() {
   const appView = document.getElementById("app-view");
 
@@ -1811,6 +2180,10 @@ async function renderUserProfile() {
     <h1 class="text-3xl font-extrabold mb-6">
       My Booking History
     </h1>
+
+    <p class="text-sm text-slate-400 mb-6">
+      Full refunds are available before the showtime on the booking date. Cancellation closes when the show starts.
+    </p>
 
     <div
       class="space-y-4"
@@ -1849,6 +2222,38 @@ async function renderUserProfile() {
 
     querySnapshot.forEach((docSnap) => {
       const booking = docSnap.data();
+      const status = booking.status || "confirmed";
+      const statusLabels = {
+        confirmed: "Confirmed",
+        refund_pending: "Refund processing",
+        refund_failed: "Refund needs support",
+        cancelled: "Cancelled",
+      };
+      const statusLabel = statusLabels[status] || status;
+      const refundStatus = booking.refundStatus || (
+        status === "refund_failed"
+          ? "not confirmed"
+          : "unknown"
+      );
+      const refundStatusLabel = {
+        pending: "Pending",
+        processed: "Processed",
+        failed: "Failed",
+        "not confirmed": "Needs support",
+        unknown: "Not available",
+      }[refundStatus] || refundStatus;
+      const createdAt = booking.createdAt?.toDate
+        ? booking.createdAt.toDate()
+        : booking.createdAt
+          ? new Date(booking.createdAt)
+          : null;
+      const showDate = createdAt && !Number.isNaN(createdAt.getTime())
+        ? createdAt.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "Unavailable";
 
       const card = document.createElement("div");
 
@@ -1870,6 +2275,10 @@ async function renderUserProfile() {
             </p>
 
             <p class="text-sm text-slate-400">
+              Show date: ${escapeHTML(showDate)}
+            </p>
+
+            <p class="text-sm text-slate-400">
               Seats: ${escapeHTML((booking.seats || []).join(", "))}
             </p>
           </div>
@@ -1880,14 +2289,77 @@ async function renderUserProfile() {
             </p>
 
             <span
-              class="inline-block bg-emerald-500/10 text-emerald-500 text-xs px-2.5 py-1 rounded-full font-medium mt-1"
+              class="inline-block ${
+                status === "confirmed"
+                  ? "bg-emerald-500/10 text-emerald-500"
+                  : status === "cancelled"
+                    ? "bg-slate-700 text-slate-300"
+                    : "bg-amber-500/10 text-amber-400"
+              } text-xs px-2.5 py-1 rounded-full font-medium mt-1"
             >
-              Confirmed
+              ${escapeHTML(statusLabel)}
             </span>
+
+            ${
+              booking.refundId
+                ? `
+                  <p class="text-sm text-slate-300 mt-2">
+                    Refund: ${escapeHTML(refundStatusLabel)}
+                    · ₹${Number(booking.refundAmount || booking.amount) || 0}
+                  </p>
+                  <button
+                    type="button"
+                    data-action="refresh-refund"
+                    class="block ml-auto mt-2 text-xs text-rose-400 hover:text-rose-300 disabled:opacity-50"
+                  >
+                    Refresh refund status
+                  </button>
+                `
+                : status === "refund_failed"
+                  ? `
+                    <p class="text-sm text-amber-400 mt-2">
+                      Refund could not be confirmed. Please contact support.
+                    </p>
+                  `
+                  : ""
+            }
+
+            ${
+              status === "confirmed"
+                ? `
+                  <button
+                    type="button"
+                    data-action="cancel-booking"
+                    class="block mt-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs px-3 py-2 rounded-lg font-semibold"
+                  >
+                    Cancel &amp; refund ₹${Number(booking.amount) || 0}
+                  </button>
+                `
+                : ""
+            }
           </div>
         `;
 
       list.appendChild(card);
+      const cancelButton = card.querySelector(
+        '[data-action="cancel-booking"]',
+      );
+      if (cancelButton) {
+        cancelButton.addEventListener(
+          "click",
+          () => cancelBooking(docSnap.id, cancelButton),
+        );
+      }
+
+      const refreshButton = card.querySelector(
+        '[data-action="refresh-refund"]',
+      );
+      if (refreshButton) {
+        refreshButton.addEventListener(
+          "click",
+          () => refreshRefundStatus(docSnap.id, refreshButton),
+        );
+      }
     });
   } catch (error) {
     console.error("Booking history error:", error);
