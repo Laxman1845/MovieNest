@@ -2,6 +2,8 @@ import hashlib
 import hmac
 import os
 import re
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Annotated
 
 from dotenv import load_dotenv
@@ -22,7 +24,9 @@ import razorpay
 # LOAD ENVIRONMENT VARIABLES
 # ============================================================
 
-load_dotenv()
+load_dotenv(
+    Path(__file__).resolve().parent / ".env"
+)
 
 
 # ============================================================
@@ -36,6 +40,10 @@ VALID_TIME_SLOTS = {
     "02:30 PM",
     "07:00 PM",
 }
+SHOW_TIMEZONE = timezone(
+    timedelta(hours=5, minutes=30),
+    name="Asia/Kolkata",
+)
 
 # ============================================================
 # VALID SEATS
@@ -1026,4 +1034,310 @@ def confirm_booking(
 
         "amount":
             booking["amount"],
+    }
+
+
+# ============================================================
+# CANCEL BOOKING AND ISSUE FULL REFUND
+# ============================================================
+
+@app.post("/api/bookings/{booking_id}/cancel")
+def cancel_booking(
+    booking_id: str,
+    user: dict = Depends(
+        get_current_user
+    ),
+) -> dict:
+    booking_ref = db.collection(
+        "bookings"
+    ).document(booking_id)
+
+    transaction = db.transaction()
+
+    @firestore.transactional
+    def claim_cancellation(txn):
+        booking_snapshot = booking_ref.get(
+            transaction=txn
+        )
+
+        if not booking_snapshot.exists:
+            raise HTTPException(
+                status_code=404,
+                detail="Booking not found.",
+            )
+
+        booking = booking_snapshot.to_dict()
+
+        if booking.get("userId") != user["uid"]:
+            raise HTTPException(
+                status_code=403,
+                detail="You cannot cancel this booking.",
+            )
+
+        if booking.get("status") != "confirmed":
+            raise HTTPException(
+                status_code=409,
+                detail="This booking is already being cancelled or is no longer active.",
+            )
+
+        created_at = booking.get("createdAt")
+        if not isinstance(created_at, datetime):
+            raise HTTPException(
+                status_code=409,
+                detail="The show date could not be verified. Please contact support.",
+            )
+
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(
+                tzinfo=timezone.utc
+            )
+
+        show_date = created_at.astimezone(
+            SHOW_TIMEZONE
+        ).date()
+        show_time = datetime.strptime(
+            booking["timeSlot"],
+            "%I:%M %p",
+        ).time()
+        show_starts_at = datetime.combine(
+            show_date,
+            show_time,
+            tzinfo=SHOW_TIMEZONE,
+        )
+
+        if datetime.now(SHOW_TIMEZONE) >= show_starts_at:
+            raise HTTPException(
+                status_code=409,
+                detail="This booking can no longer be cancelled because the show has started.",
+            )
+
+        payment_id = booking.get("paymentId")
+        if not payment_id:
+            raise HTTPException(
+                status_code=409,
+                detail="This booking has no payment record to refund. Please contact support.",
+            )
+
+        txn.update(
+            booking_ref,
+            {
+                "status": "refund_pending",
+                "refundRequestedAt": firestore.SERVER_TIMESTAMP,
+            },
+        )
+        return booking
+
+    try:
+        booking = claim_cancellation(transaction)
+    except HTTPException:
+        raise
+    except Exception as error:
+        print(
+            "Booking cancellation claim error:",
+            repr(error),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to start booking cancellation.",
+        ) from error
+
+    try:
+        refund = razorpay_client().payment.refund(
+            booking["paymentId"],
+            {},
+        )
+        refund_id = refund.get("id")
+        if not refund_id:
+            raise RuntimeError(
+                "Razorpay did not return a refund ID."
+            )
+        refund_status = str(
+            refund.get("status") or "pending"
+        ).lower()
+    except Exception as error:
+        print(
+            "Razorpay refund error:",
+            repr(error),
+        )
+        try:
+            booking_ref.update(
+                {
+                    "status": "refund_failed",
+                    "refundFailedAt": firestore.SERVER_TIMESTAMP,
+                }
+            )
+        except Exception as update_error:
+            print(
+                "Unable to update failed refund status:",
+                repr(update_error),
+            )
+
+        raise HTTPException(
+            status_code=502,
+            detail="The refund could not be confirmed. Please contact support before retrying.",
+        ) from error
+
+    seat_ref = db.collection(
+        "showSeats"
+    ).document(
+        f"{booking['movieId']}_{booking['timeSlot']}"
+    )
+    finalize_transaction = db.transaction()
+
+    @firestore.transactional
+    def finalize_cancellation(txn):
+        booking_snapshot = booking_ref.get(
+            transaction=txn
+        )
+        seat_snapshot = seat_ref.get(
+            transaction=txn
+        )
+
+        if not booking_snapshot.exists:
+            raise RuntimeError(
+                "Booking disappeared after the refund was issued."
+            )
+
+        current_booking = booking_snapshot.to_dict()
+        if current_booking.get("status") != "refund_pending":
+            raise RuntimeError(
+                "Booking status changed after the refund was issued."
+            )
+
+        seat_data = (
+            seat_snapshot.to_dict()
+            if seat_snapshot.exists
+            else {}
+        )
+        booked_seats = seat_data.get(
+            "bookedSeats",
+            [],
+        )
+        seats_to_release = set(
+            booking.get("seats", [])
+        )
+        remaining_seats = [
+            seat
+            for seat in booked_seats
+            if seat not in seats_to_release
+        ]
+
+        txn.set(
+            seat_ref,
+            {"bookedSeats": remaining_seats},
+            merge=True,
+        )
+        txn.update(
+            booking_ref,
+            {
+                "status": "cancelled",
+                "refundId": refund_id,
+                "refundAmount": booking["amount"],
+                "refundStatus": refund_status,
+                "refundedAt": firestore.SERVER_TIMESTAMP,
+            },
+        )
+
+    try:
+        finalize_cancellation(finalize_transaction)
+    except Exception as error:
+        print(
+            "Refund issued but booking finalization failed:",
+            repr(error),
+        )
+        try:
+            booking_ref.update(
+                {
+                    "refundId": refund_id,
+                    "refundAmount": booking["amount"],
+                    "refundStatus": refund_status,
+                }
+            )
+        except Exception as update_error:
+            print(
+                "Unable to persist refund details after finalization failure:",
+                repr(update_error),
+            )
+
+        raise HTTPException(
+            status_code=500,
+            detail="The refund was submitted, but the booking update is pending. Please contact support.",
+        ) from error
+
+    return {
+        "bookingId": booking_id,
+        "status": "cancelled",
+        "refundId": refund_id,
+        "refundAmount": booking["amount"],
+        "refundStatus": refund_status,
+    }
+
+
+@app.get("/api/bookings/{booking_id}/refund-status")
+def get_refund_status(
+    booking_id: str,
+    user: dict = Depends(
+        get_current_user
+    ),
+) -> dict:
+    booking_ref = db.collection(
+        "bookings"
+    ).document(booking_id)
+    booking_snapshot = booking_ref.get()
+
+    if not booking_snapshot.exists:
+        raise HTTPException(
+            status_code=404,
+            detail="Booking not found.",
+        )
+
+    booking = booking_snapshot.to_dict()
+
+    if booking.get("userId") != user["uid"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot view this booking's refund.",
+        )
+
+    refund_id = booking.get("refundId")
+    payment_id = booking.get("paymentId")
+    if not refund_id or not payment_id:
+        raise HTTPException(
+            status_code=409,
+            detail="This booking does not have a submitted refund to check.",
+        )
+
+    try:
+        refund = razorpay_client().payment.fetch_refund_id(
+            payment_id,
+            refund_id,
+        )
+        refund_status = refund.get("status")
+        if not isinstance(refund_status, str) or not refund_status:
+            raise RuntimeError(
+                "Razorpay response did not contain a refund status."
+            )
+        refund_status = refund_status.lower()
+    except Exception as error:
+        print(
+            "Razorpay refund status lookup error:",
+            repr(error),
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to retrieve the refund status from Razorpay. Please try again.",
+        ) from error
+
+    booking_ref.update(
+        {
+            "refundStatus": refund_status,
+            "refundStatusUpdatedAt": firestore.SERVER_TIMESTAMP,
+        }
+    )
+
+    return {
+        "bookingId": booking_id,
+        "refundId": refund_id,
+        "refundAmount": booking.get("refundAmount", booking.get("amount")),
+        "refundStatus": refund_status,
     }

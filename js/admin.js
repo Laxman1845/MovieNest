@@ -165,6 +165,13 @@ async function renderAdminBookings() {
     }
 
     const seatsList = Array.isArray(booking.seats) ? booking.seats.join(", ") : booking.seats || "N/A";
+    const bookingStatus = booking.status || "confirmed";
+    const statusLabel = {
+      confirmed: "Confirmed",
+      refund_pending: "Refund processing",
+      refund_failed: "Refund needs support",
+      cancelled: "Cancelled · refunded",
+    }[bookingStatus] || bookingStatus;
 
     container.innerHTML += `
       <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-sm">
@@ -173,6 +180,7 @@ async function renderAdminBookings() {
           <p class="text-slate-300 text-xs">
             Slot: <span class="font-semibold text-white">${booking.timeSlot}</span> | Seats: <span class="text-white font-bold">${seatsList}</span>
           </p>
+          <p class="text-slate-400 text-xs mt-1">Status: ${statusLabel}${booking.refundId ? ` | Refund ${booking.refundStatus || "unknown"} · ₹${booking.refundAmount || booking.amount || 0} · ${booking.refundId}` : bookingStatus === "refund_failed" ? " | Refund needs support" : ""}</p>
           <p class="text-slate-500 text-[11px] mt-1">
             📅 Date: <span class="text-slate-400 font-medium">${dateStr}</span> 
             ${timeStr ? `| 🕒 Time: <span class="text-slate-400 font-medium">${timeStr}</span>` : ""}
@@ -195,7 +203,10 @@ async function updateDashboardStats() {
 
   let revenue = 0;
   bookingsSnap.forEach((d) => {
-    revenue += d.data().amount || 0;
+    const booking = d.data();
+    if (booking.status !== "cancelled") {
+      revenue += booking.amount || 0;
+    }
   });
   document.getElementById("stat-total-revenue").innerText = `₹${revenue}`;
 }
