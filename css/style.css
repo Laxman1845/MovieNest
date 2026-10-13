@@ -49,6 +49,16 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+.seat-btn[data-cat="silver"]:not(.selected-seat) {
+  box-shadow: inset 0 -3px 0 #94a3b8;
+}
+.seat-btn[data-cat="gold"]:not(.selected-seat) {
+  box-shadow: inset 0 -3px 0 #eab308;
+}
+.seat-btn[data-cat="recliner"]:not(.selected-seat) {
+  box-shadow: inset 0 -3px 0 #a855f7;
+}
+
 .seat-btn:hover:not(:disabled) {
   transform: scale(1.1);
   border-color: #e11d48;

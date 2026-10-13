@@ -59,12 +59,55 @@
               class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1"
               >Password</label
             >
-            <input
-              type="password"
-              id="admin-password"
-              required
-              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-500 text-sm"
-            />
+            <div class="relative">
+              <input
+                type="password"
+                id="admin-password"
+                required
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-12 py-3 text-white focus:outline-none focus:border-rose-500 text-sm"
+              />
+              <button
+                type="button"
+                id="toggle-admin-password"
+                onclick="toggleAdminPassword()"
+                aria-label="Show password"
+                class="absolute inset-y-0 right-0 px-4 text-slate-400 hover:text-white transition"
+              >
+                <!-- eye (shown while password is hidden) -->
+                <svg
+                  id="eye-open"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M2.04 12.32a1 1 0 010-.64C3.42 7.51 7.36 4.5 12 4.5s8.58 3.01 9.96 7.18a1 1 0 010 .64C20.58 16.49 16.64 19.5 12 19.5s-8.58-3.01-9.96-7.18z"
+                  />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <!-- eye with slash (shown while password is visible) -->
+                <svg
+                  id="eye-closed"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5 hidden"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3.98 8.22A10.48 10.48 0 002.04 12c1.38 4.17 5.32 7.18 9.96 7.18 1.9 0 3.68-.5 5.22-1.38M6.23 6.23A10.45 10.45 0 0112 4.82c4.64 0 8.58 3.01 9.96 7.18a10.5 10.5 0 01-4.29 5.23M6.23 6.23L3 3m3.23 3.23l3.65 3.65m7.89 7.89L21 21m-3.23-3.23l-3.65-3.65m0 0a3 3 0 10-4.24-4.24m4.24 4.24L9.88 9.88"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
           <button
             type="submit"
@@ -156,6 +199,29 @@
         </div>
       </div>
 
+      <!-- Analytics -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+          <h2 class="text-lg font-bold mb-4">Revenue per Day (₹)</h2>
+          <div class="h-64"><canvas id="chart-revenue"></canvas></div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+          <h2 class="text-lg font-bold mb-4">Tickets Sold per Movie</h2>
+          <div class="h-64"><canvas id="chart-movies"></canvas></div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+          <h2 class="text-lg font-bold mb-4">Popular Show Times</h2>
+          <div class="h-64"><canvas id="chart-slots"></canvas></div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+          <h2 class="text-lg font-bold mb-1">Seat Popularity Heatmap</h2>
+          <p class="text-xs text-slate-500 mb-3">
+            Darker = booked more often. Screen is at the top.
+          </p>
+          <div id="seat-heatmap" class="grid grid-cols-10 gap-1"></div>
+        </div>
+      </div>
+
       <!-- Add Movie Form -->
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl mb-8">
         <h2 class="text-xl font-bold mb-4">Add New Movie</h2>
@@ -226,6 +292,7 @@
       </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script type="module" src="js/admin.js"></script>
   </body>
 </html>

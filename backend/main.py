@@ -34,6 +34,28 @@ load_dotenv(
 # ============================================================
 
 PRICE_PER_SEAT = 200
+SEAT_TOTAL = 80
+BASE_PRICES = {"silver": 150, "gold": 200, "recliner": 300}
+
+def seat_category(seat: str) -> str:
+    row = seat[0]
+    if row in "ABC":
+        return "silver"
+    if row in "DEF":
+        return "gold"
+    return "recliner"
+
+def price_percent(booked_count: int) -> int:
+    pct = 100
+    if datetime.now(IST).weekday() >= 5:      # Sat/Sun
+        pct += 20
+    if booked_count * 100 >= SEAT_TOTAL * 70:  # 70% full
+        pct += 15
+    return pct
+
+def calculate_amount(seats: list[str], booked_count: int) -> int:
+    pct = price_percent(booked_count)
+    return sum(BASE_PRICES[seat_category(s)] * pct // 100 for s in seats)
 
 VALID_TIME_SLOTS = {
     "10:00 AM",
@@ -44,6 +66,32 @@ SHOW_TIMEZONE = timezone(
     timedelta(hours=5, minutes=30),
     name="Asia/Kolkata",
 )
+
+SEAT_TOTAL = 80
+BASE_PRICES = {"silver": 150, "gold": 200, "recliner": 300}
+
+
+def seat_category(seat: str) -> str:
+    row = seat[0]
+    if row in "ABC":
+        return "silver"
+    if row in "DEF":
+        return "gold"
+    return "recliner"
+
+
+def price_percent(booked_count: int) -> int:
+    pct = 100
+    if datetime.now(SHOW_TIMEZONE).weekday() >= 5:   # Saturday / Sunday
+        pct += 20
+    if booked_count * 100 >= SEAT_TOTAL * 70:         # 70% full
+        pct += 15
+    return pct
+
+
+def calculate_amount(seats: list[str], booked_count: int) -> int:
+    pct = price_percent(booked_count)
+    return sum(BASE_PRICES[seat_category(s)] * pct // 100 for s in seats)
 
 # ============================================================
 # VALID SEATS
@@ -712,11 +760,7 @@ def create_order(
     # CALCULATE AMOUNT
     # --------------------------------------------------------
 
-    amount = (
-        len(payload.seats)
-        * PRICE_PER_SEAT
-        * 100
-    )
+    amount = calculate_amount(payload.seats, len(booked_seats)) * 100
 
     # --------------------------------------------------------
     # CREATE RAZORPAY ORDER
@@ -823,6 +867,51 @@ def confirm_booking(
         raise HTTPException(
             status_code=403,
             detail="Payment verification failed.",
+        )
+
+        # ========================================================
+    # GET THE AMOUNT RAZORPAY ACTUALLY CHARGED
+    # ========================================================
+
+    try:
+        rz_order = razorpay_client().order.fetch(payload.order_id)
+    except HTTPException:
+        raise
+    except Exception as error:
+        print("Order fetch error:", repr(error))
+        raise HTTPException(
+            status_code=502,
+            detail="Could not verify the payment order.",
+        )
+
+    paid_amount = int(rz_order["amount"]) // 100
+
+    # The paid order must belong to exactly this booking
+    notes = rz_order.get("notes") or {}
+
+    if (
+        notes.get("userId") != user["uid"]
+        or notes.get("movieId") != payload.movie_id
+        or notes.get("timeSlot") != payload.time_slot
+        or sorted(notes.get("seats", "").split(",")) != sorted(payload.seats)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Payment does not match this booking.",
+        )
+
+    # One payment can only be used for one booking
+    already_used = (
+        db.collection("bookings")
+        .where("orderId", "==", payload.order_id)
+        .limit(1)
+        .get()
+    )
+
+    if len(already_used) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="This payment was already used for a booking.",
         )
 
     # ========================================================
@@ -947,14 +1036,15 @@ def confirm_booking(
     "timeSlot":
         payload.time_slot,
 
+    "showDate":
+        datetime.now(SHOW_TIMEZONE).strftime("%d %b %Y"),
+
+
     "seats":
         payload.seats,
 
     "amount":
-        (
-            len(payload.seats)
-            * PRICE_PER_SEAT
-        ),
+        paid_amount,
 
     "paymentId":
         payload.payment_id,
@@ -1034,6 +1124,9 @@ def confirm_booking(
 
         "amount":
             booking["amount"],
+
+        "showDate":
+            booking["showDate"],
     }
 
 
