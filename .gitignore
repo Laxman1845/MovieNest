@@ -6,3 +6,6 @@ __pycache__/
 backend/serviceAccountKey.json
 .env
 backend/.env
+
+MovieNest.code-workspace
+

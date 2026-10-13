@@ -27,10 +27,9 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const isLocalFrontend = [
-  "localhost",
-  "127.0.0.1",
-].includes(window.location.hostname);
+const isLocalFrontend = ["localhost", "127.0.0.1"].includes(
+  window.location.hostname,
+);
 
 const API_BASE_URL = (
   window.MOVIENEST_API_URL ||
@@ -38,8 +37,8 @@ const API_BASE_URL = (
     ? "http://127.0.0.1:8000"
     : "https://movienest-lxf7.onrender.com")
 )
-    .trim()
-    .replace(/\/+$/, "");
+  .trim()
+  .replace(/\/+$/, "");
 
 let currentUser = null;
 let currentViewData = {};
@@ -54,7 +53,42 @@ let seatLocksUnsubscribe = null;
 let bookedSeatsUnsubscribe = null;
 let seatLockTimer = null;
 
-const SEAT_PRICE = 200;
+const SEAT_TOTAL = 80;
+const BASE_PRICES = { silver: 150, gold: 200, recliner: 300 };
+
+function getSeatCategory(seatId) {
+  const row = seatId[0];
+  if ("ABC".includes(row)) return "silver";
+  if ("DEF".includes(row)) return "gold";
+  return "recliner";
+}
+
+function getPriceInfo(bookedCount) {
+  let pct = 100;
+  const reasons = [];
+
+  const weekday = new Date().toLocaleDateString("en-US", {
+    weekday: "short",
+    timeZone: "Asia/Kolkata",
+  });
+
+  if (weekday === "Sat" || weekday === "Sun") {
+    pct += 20;
+    reasons.push("Weekend +20%");
+  }
+
+  if (bookedCount * 100 >= SEAT_TOTAL * 70) {
+    pct += 15;
+    reasons.push("High demand +15%");
+  }
+
+  return { pct, reasons };
+}
+
+function getSeatPrice(seatId, bookedCount) {
+  const { pct } = getPriceInfo(bookedCount);
+  return Math.floor((BASE_PRICES[getSeatCategory(seatId)] * pct) / 100);
+}
 const SEAT_LOCK_DURATION = 5 * 60 * 1000;
 
 /* ============================================================
@@ -551,12 +585,7 @@ async function loadMovieReviews(movie) {
   const summary = document.getElementById("reviews-summary");
   const list = document.getElementById("reviews-list");
 
-  if (
-    !section ||
-    section.dataset.movieId !== movie.id ||
-    !summary ||
-    !list
-  ) {
+  if (!section || section.dataset.movieId !== movie.id || !summary || !list) {
     return;
   }
 
@@ -582,9 +611,7 @@ async function loadMovieReviews(movie) {
         }`
       : "No reviews yet. Be the first to share your thoughts.";
 
-    const ownReview = reviews.find(
-      (review) => review.id === currentUser?.uid,
-    );
+    const ownReview = reviews.find((review) => review.id === currentUser?.uid);
     const ratingInput = document.getElementById("review-rating");
     const textInput = document.getElementById("review-text");
     const formTitle = document.getElementById("review-form-title");
@@ -610,8 +637,7 @@ async function loadMovieReviews(movie) {
             const isOwnReview = review.id === currentUser?.uid;
             const reviewDate = review.updatedAt?.toDate?.();
             const dateLabel =
-              reviewDate instanceof Date &&
-              !Number.isNaN(reviewDate.getTime())
+              reviewDate instanceof Date && !Number.isNaN(reviewDate.getTime())
                 ? ` · ${reviewDate.toLocaleDateString()}`
                 : "";
 
@@ -681,14 +707,11 @@ async function submitMovieReview(event, movie) {
   submitButton.disabled = true;
 
   try {
-    await setDoc(
-      doc(db, "movies", movie.id, "reviews", currentUser.uid),
-      {
-        rating,
-        text,
-        updatedAt: serverTimestamp(),
-      },
-    );
+    await setDoc(doc(db, "movies", movie.id, "reviews", currentUser.uid), {
+      rating,
+      text,
+      updatedAt: serverTimestamp(),
+    });
     showCustomPopup("Your review was saved.", "success");
     await loadMovieReviews(movie);
   } catch (error) {
@@ -831,6 +854,7 @@ function renderSeatSelection(data) {
 </div>
 
 <p id="recommendation-message" class="text-sm text-center text-emerald-400 mb-4"></p>
+<p id="pricing-note" class="text-xs text-center text-amber-400 mb-4"></p>
 
 <div id="seat-grid" class="seat-grid"></div>
 
@@ -859,6 +883,19 @@ function renderSeatSelection(data) {
             class="w-3 h-3 bg-slate-900 border border-slate-800 rounded"
           ></div>
           Occupied
+        </div>
+
+                <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded bg-slate-800" style="box-shadow: inset 0 -3px 0 #94a3b8"></div>
+          Silver ₹150
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded bg-slate-800" style="box-shadow: inset 0 -3px 0 #eab308"></div>
+          Gold ₹200
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded bg-slate-800" style="box-shadow: inset 0 -3px 0 #a855f7"></div>
+          Recliner ₹300
         </div>
       </div>
 
@@ -1201,6 +1238,8 @@ function renderSeatButtons(data, bookedSeats = [], locks = {}) {
 
       seatBtn.type = "button";
       seatBtn.innerText = seatId;
+      seatBtn.dataset.cat = getSeatCategory(seatId);
+      seatBtn.title = `${seatId} · ${getSeatCategory(seatId)} · ₹${getSeatPrice(seatId, bookedSeats.length)}`;
 
       if (isBooked) {
         seatBtn.className =
@@ -1470,8 +1509,20 @@ function updateBookingSummary() {
     countEl.innerText = count;
   }
 
+  const bookedCount = (currentViewData.bookedSeats || []).length;
+
   if (priceEl) {
-    priceEl.innerText = count * SEAT_PRICE;
+    let total = 0;
+    selectedSeatIds.forEach((id) => {
+      total += getSeatPrice(id, bookedCount);
+    });
+    priceEl.innerText = total;
+  }
+
+  const note = document.getElementById("pricing-note");
+  if (note) {
+    const { reasons } = getPriceInfo(bookedCount);
+    note.innerText = reasons.length ? "Pricing: " + reasons.join(", ") : "";
   }
 
   if (paymentBtn) {
@@ -1881,6 +1932,16 @@ async function completeBookingAfterPayment(
 
       seats: seatIds,
 
+      bookingId: confirmation.bookingId,
+
+      showDate:
+        confirmation.showDate ||
+        new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+
       amount: confirmation.amount,
 
       paymentId: paymentRes.razorpay_payment_id,
@@ -1952,6 +2013,63 @@ function getBase64ImageFromUrl(imageUrl) {
    GENERATE PDF TICKET
    ============================================================ */
 
+/* ============================================================
+   QR CODE HELPERS
+   ============================================================ */
+
+function buildTicketQrText(booking) {
+  return [
+    "MOVIENEST TICKET",
+    `Booking ID: ${booking.bookingId || "N/A"}`,
+    `Movie: ${booking.movieTitle || "N/A"}`,
+    `Date: ${booking.showDate || ""}`,
+    `Time: ${booking.timeSlot || ""}`,
+    `Seats: ${(booking.seats || []).join(", ")}`,
+    `Amount: Rs.${booking.amount || 0}`,
+    `Payment ID: ${booking.paymentId || ""}`,
+  ].join("\n");
+}
+
+/* Returns a PNG data URL of the QR code, or null if the library is missing */
+function makeQrDataUrl(text, pixelsPerModule = 8) {
+  if (typeof window.qrcode !== "function") {
+    console.warn("qrcode-generator is not loaded.");
+    return null;
+  }
+
+  const qr = window.qrcode(0, "M"); // 0 = auto size, M = medium error correction
+  qr.addData(text);
+  qr.make();
+
+  const count = qr.getModuleCount();
+  const quiet = 4; // white border around the QR, in modules
+  const size = (count + quiet * 2) * pixelsPerModule;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = "#000000";
+
+  for (let r = 0; r < count; r++) {
+    for (let c = 0; c < count; c++) {
+      if (qr.isDark(r, c)) {
+        ctx.fillRect(
+          (c + quiet) * pixelsPerModule,
+          (r + quiet) * pixelsPerModule,
+          pixelsPerModule,
+          pixelsPerModule,
+        );
+      }
+    }
+  }
+
+  return canvas.toDataURL("image/png");
+}
+
 async function generateTicketPDF(booking) {
   if (!window.jspdf) {
     console.warn("jsPDF is not loaded.");
@@ -2013,6 +2131,10 @@ async function generateTicketPDF(booking) {
 
   y += 10;
 
+  pdf.text(`Show Date: ${booking.showDate || ""}`, 20, y);
+
+  y += 10;
+
   pdf.text(`Showtime Slot: ${booking.timeSlot || ""}`, 20, y);
 
   y += 10;
@@ -2031,7 +2153,23 @@ async function generateTicketPDF(booking) {
 
   pdf.text(`Booking Date: ${new Date().toLocaleString()}`, 20, y);
 
-  pdf.line(20, 130, 190, 130);
+  y += 10;
+
+  pdf.text(`Booking ID: ${booking.bookingId || ""}`, 20, y);
+
+  pdf.line(20, 140, 190, 140);
+
+  // QR code (kept on a white background so it scans on the dark page)
+  const qrImg = makeQrDataUrl(buildTicketQrText(booking));
+
+  if (qrImg) {
+    pdf.addImage(qrImg, "PNG", 20, 148, 55, 55);
+
+    pdf.setFontSize(10);
+    pdf.setTextColor(203, 213, 225);
+    pdf.text("Scan at the entrance to view", 82, 165);
+    pdf.text("your ticket details.", 82, 172);
+  }
 
   pdf.setFontSize(10);
 
@@ -2040,7 +2178,7 @@ async function generateTicketPDF(booking) {
   pdf.text(
     "Please present this ticket confirmation at the entrance counter. Enjoy your movie!",
     20,
-    140,
+    215,
   );
 
   const safeMovieName = String(booking.movieTitle || "Booking")
@@ -2056,10 +2194,7 @@ async function generateTicketPDF(booking) {
 
 async function cancelBooking(bookingId, button) {
   if (!currentUser) {
-    showCustomPopup(
-      "Please sign in to cancel a booking.",
-      "error",
-    );
+    showCustomPopup("Please sign in to cancel a booking.", "error");
     return;
   }
 
@@ -2091,10 +2226,7 @@ async function cancelBooking(bookingId, button) {
       throw new Error(
         response.status === 404
           ? "The selected backend does not have the cancellation endpoint yet. Restart the local backend or deploy the latest backend code."
-          : getErrorMessage(
-              result,
-              "Unable to cancel this booking.",
-            ),
+          : getErrorMessage(result, "Unable to cancel this booking."),
       );
     }
 
@@ -2120,10 +2252,7 @@ async function cancelBooking(bookingId, button) {
 
 async function refreshRefundStatus(bookingId, button) {
   if (!currentUser) {
-    showCustomPopup(
-      "Please sign in to check the refund status.",
-      "error",
-    );
+    showCustomPopup("Please sign in to check the refund status.", "error");
     return;
   }
 
@@ -2145,18 +2274,12 @@ async function refreshRefundStatus(bookingId, button) {
 
     if (!response.ok) {
       throw new Error(
-        getErrorMessage(
-          result,
-          "Unable to retrieve the refund status.",
-        ),
+        getErrorMessage(result, "Unable to retrieve the refund status."),
       );
     }
 
     await renderUserProfile();
-    showCustomPopup(
-      `Razorpay refund status: ${result.refundStatus}.`,
-      "info",
-    );
+    showCustomPopup(`Razorpay refund status: ${result.refundStatus}.`, "info");
   } catch (error) {
     console.error("Refund status lookup error:", error);
     button.disabled = false;
@@ -2230,30 +2353,30 @@ async function renderUserProfile() {
         cancelled: "Cancelled",
       };
       const statusLabel = statusLabels[status] || status;
-      const refundStatus = booking.refundStatus || (
-        status === "refund_failed"
-          ? "not confirmed"
-          : "unknown"
-      );
-      const refundStatusLabel = {
-        pending: "Pending",
-        processed: "Processed",
-        failed: "Failed",
-        "not confirmed": "Needs support",
-        unknown: "Not available",
-      }[refundStatus] || refundStatus;
+      const refundStatus =
+        booking.refundStatus ||
+        (status === "refund_failed" ? "not confirmed" : "unknown");
+      const refundStatusLabel =
+        {
+          pending: "Pending",
+          processed: "Processed",
+          failed: "Failed",
+          "not confirmed": "Needs support",
+          unknown: "Not available",
+        }[refundStatus] || refundStatus;
       const createdAt = booking.createdAt?.toDate
         ? booking.createdAt.toDate()
         : booking.createdAt
           ? new Date(booking.createdAt)
           : null;
-      const showDate = createdAt && !Number.isNaN(createdAt.getTime())
-        ? createdAt.toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-        : "Unavailable";
+      const showDate =
+        createdAt && !Number.isNaN(createdAt.getTime())
+          ? createdAt.toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "Unavailable";
 
       const card = document.createElement("div");
 
@@ -2341,13 +2464,10 @@ async function renderUserProfile() {
         `;
 
       list.appendChild(card);
-      const cancelButton = card.querySelector(
-        '[data-action="cancel-booking"]',
-      );
+      const cancelButton = card.querySelector('[data-action="cancel-booking"]');
       if (cancelButton) {
-        cancelButton.addEventListener(
-          "click",
-          () => cancelBooking(docSnap.id, cancelButton),
+        cancelButton.addEventListener("click", () =>
+          cancelBooking(docSnap.id, cancelButton),
         );
       }
 
@@ -2355,9 +2475,8 @@ async function renderUserProfile() {
         '[data-action="refresh-refund"]',
       );
       if (refreshButton) {
-        refreshButton.addEventListener(
-          "click",
-          () => refreshRefundStatus(docSnap.id, refreshButton),
+        refreshButton.addEventListener("click", () =>
+          refreshRefundStatus(docSnap.id, refreshButton),
         );
       }
     });

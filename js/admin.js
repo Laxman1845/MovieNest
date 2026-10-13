@@ -20,13 +20,19 @@ onAuthStateChanged(auth, async (user) => {
 
     if (adminSnap.exists() && adminSnap.data().isAdmin === true) {
       document.getElementById("admin-auth-container").classList.add("hidden");
-      document.getElementById("admin-dashboard-container").classList.remove("hidden");
+      document
+        .getElementById("admin-dashboard-container")
+        .classList.remove("hidden");
       document.getElementById("admin-user-email").innerText = user.email;
       loadAdminDashboard();
     } else {
       await signOut(auth);
-      document.getElementById("admin-dashboard-container").classList.add("hidden");
-      document.getElementById("admin-auth-container").classList.remove("hidden");
+      document
+        .getElementById("admin-dashboard-container")
+        .classList.add("hidden");
+      document
+        .getElementById("admin-auth-container")
+        .classList.remove("hidden");
     }
   }
 });
@@ -37,7 +43,11 @@ export async function handleAdminLogin(e) {
   const password = document.getElementById("admin-password").value;
 
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password,
+    );
     const user = userCredential.user;
 
     const adminDocRef = doc(db, "admins", user.uid);
@@ -45,7 +55,9 @@ export async function handleAdminLogin(e) {
 
     if (adminSnap.exists() && adminSnap.data().isAdmin === true) {
       document.getElementById("admin-auth-container").classList.add("hidden");
-      document.getElementById("admin-dashboard-container").classList.remove("hidden");
+      document
+        .getElementById("admin-dashboard-container")
+        .classList.remove("hidden");
       document.getElementById("admin-user-email").innerText = user.email;
       loadAdminDashboard();
     } else {
@@ -66,6 +78,7 @@ async function loadAdminDashboard() {
     renderAdminMovies(),
     renderAdminBookings(),
     updateDashboardStats(),
+    renderAnalytics(),
   ]);
 }
 
@@ -119,10 +132,10 @@ async function renderAdminMovies() {
     container.innerHTML += `
       <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
         <div class="flex items-center space-x-3">
-          <img src="${movie.posterUrl || movie.poster || ''}" class="w-10 h-14 object-cover rounded-lg">
+          <img src="${movie.posterUrl || movie.poster || ""}" class="w-10 h-14 object-cover rounded-lg">
           <div>
             <h4 class="font-bold text-white text-sm">${movie.title}</h4>
-            <p class="text-xs text-rose-400">${movie.genre || ''}</p>
+            <p class="text-xs text-rose-400">${movie.genre || ""}</p>
           </div>
         </div>
         <button onclick="deleteMovie('${docSnap.id}')" class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">Delete</button>
@@ -149,8 +162,12 @@ async function renderAdminBookings() {
   });
 
   bookings.sort((a, b) => {
-    const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
-    const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+    const timeA = a.createdAt?.toDate
+      ? a.createdAt.toDate().getTime()
+      : new Date(a.createdAt || 0).getTime();
+    const timeB = b.createdAt?.toDate
+      ? b.createdAt.toDate().getTime()
+      : new Date(b.createdAt || 0).getTime();
     return timeB - timeA;
   });
 
@@ -159,19 +176,32 @@ async function renderAdminBookings() {
     let timeStr = "";
 
     if (booking.createdAt) {
-      const dateObj = booking.createdAt.toDate ? booking.createdAt.toDate() : new Date(booking.createdAt);
-      dateStr = dateObj.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-      timeStr = dateObj.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+      const dateObj = booking.createdAt.toDate
+        ? booking.createdAt.toDate()
+        : new Date(booking.createdAt);
+      dateStr = dateObj.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      timeStr = dateObj.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
     }
 
-    const seatsList = Array.isArray(booking.seats) ? booking.seats.join(", ") : booking.seats || "N/A";
+    const seatsList = Array.isArray(booking.seats)
+      ? booking.seats.join(", ")
+      : booking.seats || "N/A";
     const bookingStatus = booking.status || "confirmed";
-    const statusLabel = {
-      confirmed: "Confirmed",
-      refund_pending: "Refund processing",
-      refund_failed: "Refund needs support",
-      cancelled: "Cancelled · refunded",
-    }[bookingStatus] || bookingStatus;
+    const statusLabel =
+      {
+        confirmed: "Confirmed",
+        refund_pending: "Refund processing",
+        refund_failed: "Refund needs support",
+        cancelled: "Cancelled · refunded",
+      }[bookingStatus] || bookingStatus;
 
     container.innerHTML += `
       <div class="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-sm">
@@ -211,6 +241,113 @@ async function updateDashboardStats() {
   document.getElementById("stat-total-revenue").innerText = `₹${revenue}`;
 }
 
+const charts = {};
+
+function drawChart(id, config) {
+  if (charts[id]) charts[id].destroy(); // avoids "canvas already in use" on reload
+  charts[id] = new Chart(document.getElementById(id), config);
+}
+
+async function renderAnalytics() {
+  if (typeof Chart === "undefined") return;
+  Chart.defaults.color = "#94a3b8";
+
+  const snap = await getDocs(collection(db, "bookings"));
+  const byDay = {},
+    byMovie = {},
+    bySlot = {},
+    bySeat = {};
+
+  snap.forEach((d) => {
+    const b = d.data();
+
+    // Same rule as the Total Revenue card: ignore cancelled bookings
+    if (b.status === "cancelled") return;
+
+    const dt = b.createdAt?.toDate
+      ? b.createdAt.toDate()
+      : new Date(b.createdAt || 0);
+    const day = dt.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD
+    const seats = Array.isArray(b.seats) ? b.seats : [];
+    const movie = b.movieTitle || "Unknown";
+    const slot = b.timeSlot || "?";
+
+    byDay[day] = (byDay[day] || 0) + (b.amount || 0);
+    byMovie[movie] = (byMovie[movie] || 0) + seats.length;
+    bySlot[slot] = (bySlot[slot] || 0) + seats.length;
+    seats.forEach((s) => (bySeat[s] = (bySeat[s] || 0) + 1));
+  });
+
+  const days = Object.keys(byDay).sort();
+  const fixedHeight = { maintainAspectRatio: false };
+
+  drawChart("chart-revenue", {
+    type: "line",
+    data: {
+      labels: days,
+      datasets: [
+        {
+          label: "Revenue (₹)",
+          data: days.map((k) => byDay[k]),
+          borderColor: "#f43f5e",
+          backgroundColor: "rgba(244,63,94,0.15)",
+          fill: true,
+          tension: 0.3,
+        },
+      ],
+    },
+    options: fixedHeight,
+  });
+
+  drawChart("chart-movies", {
+    type: "bar",
+    data: {
+      labels: Object.keys(byMovie),
+      datasets: [
+        {
+          label: "Tickets",
+          data: Object.values(byMovie),
+          backgroundColor: "#f43f5e",
+        },
+      ],
+    },
+    options: { ...fixedHeight, plugins: { legend: { display: false } } },
+  });
+
+  drawChart("chart-slots", {
+    type: "doughnut",
+    data: {
+      labels: Object.keys(bySlot),
+      datasets: [
+        {
+          data: Object.values(bySlot),
+          backgroundColor: ["#f43f5e", "#38bdf8", "#eab308", "#a855f7"],
+        },
+      ],
+    },
+    options: fixedHeight,
+  });
+
+  // Seat heatmap: rows A-H, seats 1-10
+  const grid = document.getElementById("seat-heatmap");
+  if (!grid) return;
+  const max = Math.max(1, ...Object.values(bySeat));
+  grid.innerHTML = "";
+
+  for (const row of "ABCDEFGH") {
+    for (let i = 1; i <= 10; i++) {
+      const id = `${row}${i}`;
+      const n = bySeat[id] || 0;
+      const cell = document.createElement("div");
+      cell.className = "text-[10px] text-center py-1.5 rounded text-white";
+      cell.style.background = `rgba(244,63,94,${0.08 + 0.92 * (n / max)})`;
+      cell.title = `${id}: ${n} booking(s)`;
+      cell.textContent = id;
+      grid.appendChild(cell);
+    }
+  }
+}
+
 export function toggleAdminTheme() {
   const body = document.body;
   const btn = document.getElementById("theme-toggle-btn");
@@ -225,6 +362,17 @@ window.handleAdminLogout = handleAdminLogout;
 window.handleAddMovie = handleAddMovie;
 window.deleteMovie = deleteMovie;
 window.toggleAdminTheme = toggleAdminTheme;
+
+window.toggleAdminPassword = function () {
+  const input = document.getElementById("admin-password");
+  const btn = document.getElementById("toggle-admin-password");
+  const show = input.type === "password";
+
+  input.type = show ? "text" : "password";
+  document.getElementById("eye-open").classList.toggle("hidden", show);
+  document.getElementById("eye-closed").classList.toggle("hidden", !show);
+  btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+};
 
 const savedTheme = localStorage.getItem("app-theme");
 if (savedTheme === "light") {
