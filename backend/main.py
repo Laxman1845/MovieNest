@@ -125,7 +125,7 @@ SEAT_PATTERN = re.compile(
     r"^[A-H](10|[1-9])$"
 )
 
-API_VERSION = "1.0.1-seat-validation-fix"
+API_VERSION = "1.0.1-dynamic-pricing"
 
 
 # ============================================================
